@@ -1,0 +1,24 @@
+# Environment
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+*.egg-info/
+
+# Data (too large for GitHub)
+data/raw/
+data/processed/
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/
+
+# Mac
+.DS_Store
+
+# Models — we'll keep these
+# models/
