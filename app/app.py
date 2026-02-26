@@ -418,9 +418,9 @@ if run:
         st.markdown('<p class="section-label">Historical Rainfall for This Season</p>',
                     unsafe_allow_html=True)
         try:
-            seasonal_v3 = pd.read_parquet(
-                "../data/processed/seasonal_enriched.parquet"
-            )
+            DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/processed/seasonal_enriched.parquet")
+            seasonal_v3 = pd.read_parquet(DATA_PATH)
+
             region_hist = seasonal_v3[
                 (seasonal_v3["region"] == region_key) &
                 (seasonal_v3["season"] == season_key)
