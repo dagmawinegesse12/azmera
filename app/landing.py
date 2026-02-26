@@ -545,7 +545,7 @@ st.markdown("""
         up to 3 months before the growing season begins.
     </p>
     <div class="hero-cta-group">
-        <a href="http://localhost:8501" target="_self" class="cta-primary">
+        <a href="https://azmera-forecast.streamlit.app" target="_self" class="cta-primary">
             🔮 Try Azmera Now →
         </a>
         <a href="#story" class="cta-secondary">
@@ -765,7 +765,7 @@ st.markdown("""
         in under 30 seconds.
     </p>
     <div class="hero-cta-group">
-        <a href="http://localhost:8501" target="_self" class="cta-primary">
+        <a href="https://azmera-forecast.streamlit.app" target="_self" class="cta-primary">
             🔮 Open Azmera Forecast →
         </a>
     </div>
