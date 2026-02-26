@@ -9,8 +9,17 @@ __pycache__/
 .Python
 *.egg-info/
 
-# Data (too large for GitHub)
-data/raw/
+# Large data files — exclude NASA POWER rainfall (huge)
+data/raw/nasa_power_*.csv
+data/raw/chirps_*.csv
+
+# Keep the small index CSVs — explicitly allow them
+# data/raw/enso_index.csv  ← keep
+# data/raw/iod_index.csv   ← keep
+# data/raw/pdo_index.csv   ← keep
+# data/raw/atlantic_sst.csv ← keep
+
+# Processed data
 data/processed/
 
 # Jupyter
@@ -19,6 +28,3 @@ notebooks/
 
 # Mac
 .DS_Store
-
-# Models — we'll keep these
-# models/
