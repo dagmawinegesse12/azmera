@@ -20,7 +20,7 @@ data/raw/chirps_*.csv
 # data/raw/atlantic_sst.csv ← keep
 
 # Processed data
-data/processed/
+
 
 # Jupyter
 .ipynb_checkpoints/
