@@ -29,20 +29,24 @@ REGION_GEOMETRIES = {
 
 def init_gee():
     try:
-        # Try Streamlit Cloud secrets first
         try:
-            json_str = st.secrets["gee"]["json_data"]
-            key_dict = json.loads(json_str)
+            print(f"GEE debug — available secret keys: {list(st.secrets.keys())}")
+            key_dict = dict(st.secrets["gee"])
+            print(f"GEE debug — gee keys found: {list(key_dict.keys())}")
             service_account = key_dict["client_email"]
             credentials = ee.ServiceAccountCredentials(
                 service_account, key_data=key_dict
             )
             ee.Initialize(credentials)
+            print("GEE init success!")
             return True
-        except KeyError:
-            pass  # Secret not found, try local
+        except KeyError as e:
+            print(f"GEE secret KeyError: {e}")
+        except Exception as e:
+            print(f"GEE secret error: {e}")
 
-        # Fall back to local key file
+        # Fall back to local
+        
         key_path = os.path.expanduser("~/secrets/azmera-gee-key.json")
         if os.path.exists(key_path):
             with open(key_path) as f:
