@@ -31,16 +31,16 @@ def init_gee():
     try:
         # Try Streamlit Cloud secrets first
         try:
-            if "gee" in st.secrets:
-                key_dict = json.loads(st.secrets["gee"]["json_data"])
-                service_account = key_dict["client_email"]
-                credentials = ee.ServiceAccountCredentials(
-                    service_account, key_data=key_dict
-                )
-                ee.Initialize(credentials)
-                return True
-        except Exception:
-            pass
+            json_str = st.secrets["gee"]["json_data"]
+            key_dict = json.loads(json_str)
+            service_account = key_dict["client_email"]
+            credentials = ee.ServiceAccountCredentials(
+                service_account, key_data=key_dict
+            )
+            ee.Initialize(credentials)
+            return True
+        except KeyError:
+            pass  # Secret not found, try local
 
         # Fall back to local key file
         key_path = os.path.expanduser("~/secrets/azmera-gee-key.json")
@@ -52,12 +52,13 @@ def init_gee():
             ee.Initialize(credentials)
             return True
 
+        print("GEE init failed: no credentials found")
         return False
 
     except Exception as e:
         print(f"GEE init failed: {e}")
         return False
-
+    
 def get_region_geometry(region_name):
     r = REGION_GEOMETRIES.get(region_name)
     if not r:
