@@ -17,7 +17,6 @@ from chirps_anomaly import get_season_anomaly, get_latest_month_rainfall
 
 try:
     from gee_features import render_gee_panel, init_gee
-    init_gee()
     GEE_AVAILABLE = True
 except Exception:
     GEE_AVAILABLE = False
