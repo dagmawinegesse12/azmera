@@ -32,7 +32,7 @@ header {visibility: hidden;}
 .cta-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(39,174,96,0.5); color: white; text-decoration: none; }
 .cta-secondary { background: transparent; color: #8aacb0; font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 400; padding: 16px 32px; border-radius: 100px; border: 1px solid #1e3040; text-decoration: none; transition: all 0.3s ease; display: inline-block; }
 .cta-secondary:hover { border-color: #4a9060; color: #4a9060; text-decoration: none; }
-.stats-strip { display: flex; justify-content: center; gap: 0; margin-top: 80px; animation: fadeUp 0.8s ease 0.5s both; border-top: 1px solid #0f1820; border-bottom: 1px solid #0f1820; width: 100%; max-width: 800px; }
+.stats-strip { display: flex; justify-content: center; gap: 0; margin-top: 80px; animation: fadeUp 0.8s ease 0.5s both; border-top: 1px solid #0f1820; border-bottom: 1px solid #0f1820; width: 100%; max-width: 900px; }
 .stat-item { flex: 1; padding: 24px 32px; text-align: center; border-right: 1px solid #0f1820; }
 .stat-item:last-child { border-right: none; }
 .stat-number { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; color: #4a9060; display: block; }
@@ -97,9 +97,10 @@ st.markdown("""
 </div>
 <div class="stats-strip">
 <div class="stat-item"><span class="stat-number">44</span><span class="stat-label">Years of Data</span></div>
-<div class="stat-item"><span class="stat-number">13</span><span class="stat-label">Ethiopian Regions</span></div>
+<div class="stat-item"><span class="stat-number">78</span><span class="stat-label">Zones Covered</span></div>
+<div class="stat-item"><span class="stat-number">156</span><span class="stat-label">Forecast Models</span></div>
 <div class="stat-item"><span class="stat-number">100%</span><span class="stat-label">2015 Drought Precision</span></div>
-<div class="stat-item"><span class="stat-number">4</span><span class="stat-label">Ocean Signals Analyzed</span></div>
+<div class="stat-item"><span class="stat-number">4</span><span class="stat-label">Ocean Signals</span></div>
 </div>
 </section>
 """, unsafe_allow_html=True)
@@ -114,7 +115,7 @@ st.markdown("""
 <h2 class="story-headline">The 1997 drought changed Ethiopia. We're making sure the next one doesn't catch anyone off guard.</h2>
 </div>
 <div>
-<p class="story-body">In 1997, a powerful El Nino triggered one of Ethiopia's most devastating droughts. Crops failed. Livestock died. Millions faced food insecurity across the Horn of Africa. It is the drought that <strong>most Ethiopians alive today remember</strong> — not because it was the worst in history, but because it struck without adequate warning reaching the farmers who needed it most.</p>
+<p class="story-body">In 1997, a powerful El Niño triggered one of Ethiopia's most devastating droughts. Crops failed. Livestock died. Millions faced food insecurity across the Horn of Africa. It is the drought that <strong>most Ethiopians alive today remember</strong> — not because it was the worst in history, but because it struck without adequate warning reaching the farmers who needed it most.</p>
 <p class="story-body">Ethiopia has world-class climate scientists at ICPAC and the National Meteorological Institute. But their forecasts are written for policymakers — not for a farmer in Oromia deciding whether to plant Teff or Sorghum next month.</p>
 <div class="story-quote">"The science exists. The data exists. What's missing is the last mile — turning climate forecasts into decisions farmers can actually act on."</div>
 <p class="story-body">Azmera bridges that gap. Built by an Ethiopian engineer using NASA satellite data, NOAA ocean indices, and 44 years of rainfall records — translated into plain language, <strong>in Amharic</strong>, for the people who need it most.</p>
@@ -134,19 +135,67 @@ st.markdown("""
 <span class="step-number">01</span>
 <span class="step-icon">🌊</span>
 <div class="step-title">Read the Ocean Signals</div>
-<p class="step-desc">Azmera monitors 4 global climate indices — El Nino / La Nina (ENSO), the Indian Ocean Dipole (IOD), the Pacific Decadal Oscillation (PDO), and Atlantic sea surface temperatures. These ocean patterns drive Ethiopian rainfall months before the season begins.</p>
+<p class="step-desc">Azmera monitors 4 global climate indices — El Niño / La Niña (ENSO), the Indian Ocean Dipole (IOD), the Pacific Decadal Oscillation (PDO), and Atlantic sea surface temperatures. These ocean patterns drive Ethiopian rainfall months before the season begins.</p>
 </div>
 <div class="step-card">
 <span class="step-number">02</span>
 <span class="step-icon">🤖</span>
-<div class="step-title">Run the AI Forecast Model</div>
-<p class="step-desc">An XGBoost machine learning model trained on 44 years of NASA POWER rainfall data predicts whether the upcoming Kiremt or Belg season will be below normal, near normal, or above normal — for each of Ethiopia's 13 regions separately.</p>
+<div class="step-title">Run 156 Zone-Level Models</div>
+<p class="step-desc">156 XGBoost models — one per zone per season — trained on 44 years of CHIRPS 5km satellite rainfall data predict whether Kiremt or Belg will be below, near, or above normal. Each zone is calibrated independently to its own local rainfall patterns.</p>
 </div>
 <div class="step-card">
 <span class="step-number">03</span>
 <span class="step-icon">🌾</span>
 <div class="step-title">Deliver Actionable Guidance</div>
-<p class="step-desc">Farmers receive plain-language crop recommendations — which Ethiopian crops to plant, when to plant them, how to prepare water storage — in both English and Amharic. Alongside live WFP market prices for Teff, Maize, Sorghum, Wheat, and Barley.</p>
+<p class="step-desc">Farmers receive plain-language crop recommendations — which Ethiopian crops to plant, when to plant them, how to prepare water storage — in both English and Amharic. Paired with <strong>observed CHIRPS rainfall</strong> (season-to-date vs 1991–2020 baseline) and live WFP market prices for Teff, Maize, Sorghum, Wheat, and Barley.</p>
+</div>
+</div>
+</div>
+</section>
+""", unsafe_allow_html=True)
+
+
+# ── Zone Drill-Down Section ───────────────────────────────────────
+st.markdown("""
+<section style="padding: 100px 40px; max-width: 1100px; margin: 0 auto;">
+<span class="section-tag" style="display:block; text-align:center; margin-bottom:16px">Zone-Level Forecasting</span>
+<h2 style="font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 700; color: #f0f8f0; text-align: center; margin-bottom: 16px; letter-spacing: -0.5px;">Beyond the Region.<br>Zone-Level Forecasts Closer to Your Farm.</h2>
+<p style="font-family: 'Sora', sans-serif; font-size: 1rem; color: #7a9aaa; text-align: center; max-width: 640px; margin: 0 auto 64px auto; line-height: 1.8;">Ethiopia is vast. A drought in West Oromia looks nothing like conditions in Bale. Azmera now forecasts at the <strong style="color:#c8e0d8">zone level</strong> — 78 zones across all regions — so communities get forecasts specific to where they actually farm.</p>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 48px;">
+<div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px; text-align:center;">
+<span style="font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 900; color: #4a9060; display:block; margin-bottom:8px;">78</span>
+<span style="font-family: 'Sora', sans-serif; font-size: 0.85rem; color: #4a7080; text-transform:uppercase; letter-spacing:2px;">Zones Modeled</span>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.85rem; color: #4a7080; line-height:1.7; margin-top:12px;">Separate XGBoost models trained for each zone × season combination using CHIRPS 5km satellite rainfall data going back to 1981</p>
+</div>
+<div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px; text-align:center;">
+<span style="font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 900; color: #4a9060; display:block; margin-bottom:8px;">156</span>
+<span style="font-family: 'Sora', sans-serif; font-size: 0.85rem; color: #4a7080; text-transform:uppercase; letter-spacing:2px;">Forecast Models</span>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.85rem; color: #4a7080; line-height:1.7; margin-top:12px;">78 zones × 2 seasons (Kiremt + Belg) — each trained and validated independently against decades of observed rainfall</p>
+</div>
+<div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px; text-align:center;">
+<span style="font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 900; color: #4a9060; display:block; margin-bottom:8px;">🗺️</span>
+<span style="font-family: 'Sora', sans-serif; font-size: 0.85rem; color: #4a7080; text-transform:uppercase; letter-spacing:2px;">Interactive Map</span>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.85rem; color: #4a7080; line-height:1.7; margin-top:12px;">Click any region on the risk map to drill into its zones — each colored by its own forecast. One click, instant zone-level outlook.</p>
+</div>
+</div>
+<div style="background: linear-gradient(135deg, rgba(26,107,64,0.1), rgba(10,40,80,0.15)); border: 1px solid #1a5030; border-radius: 20px; padding: 40px; display:flex; gap:40px; align-items:center; flex-wrap:wrap;">
+<div style="flex:1; min-width:280px;">
+<div style="font-family: 'Sora', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #4a9060; margin-bottom: 12px;">How the Map Works</div>
+<h3 style="font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700; color: #c8e0d8; margin-bottom: 16px;">Select a region → See every zone colored by its forecast</h3>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.92rem; color: #7a9aaa; line-height: 1.8;">The Risk Map shows all of Ethiopia colored by seasonal outlook. Select a region in the sidebar or click it on the map — the view drills into every zone within that region, each colored by its own independent forecast. Click any zone card to generate a full advisory.</p>
+</div>
+<div style="flex:0 0 auto; display:flex; flex-direction:column; gap:12px;">
+<div style="background:#0f1820; border-radius:12px; padding:16px 24px; border-left: 3px solid #4caf84;">
+<div style="font-family:'Sora',sans-serif; font-size:0.72rem; color:#4a7080; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;">Above Normal</div>
+<div style="font-family:'Playfair Display',serif; font-size:1.1rem; color:#4caf84; font-weight:700;">Good rains expected</div>
+</div>
+<div style="background:#0f1820; border-radius:12px; padding:16px 24px; border-left: 3px solid #f0c040;">
+<div style="font-family:'Sora',sans-serif; font-size:0.72rem; color:#4a7080; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;">Near Normal</div>
+<div style="font-family:'Playfair Display',serif; font-size:1.1rem; color:#f0c040; font-weight:700;">Average season likely</div>
+</div>
+<div style="background:#0f1820; border-radius:12px; padding:16px 24px; border-left: 3px solid #e05252;">
+<div style="font-family:'Sora',sans-serif; font-size:0.72rem; color:#4a7080; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px;">Below Normal</div>
+<div style="font-family:'Playfair Display',serif; font-size:1.1rem; color:#e05252; font-weight:700;">Drought risk — prepare now</div>
 </div>
 </div>
 </div>
@@ -173,12 +222,12 @@ st.markdown("""
 <div class="val-card">
 <div class="val-headline">61.5%</div>
 <div class="val-subline">Accuracy during strong ENSO signals</div>
-<p class="val-detail">When El Nino or La Nina conditions are strong — exactly when droughts are most likely — Azmera achieves 61.5% accuracy. The model correctly flagged major drought events across Oromia consistently:</p>
+<p class="val-detail">When El Niño or La Niña conditions are strong — exactly when droughts are most likely — Azmera achieves 61.5% accuracy. The model correctly flagged major drought events across Oromia consistently:</p>
 <div class="drought-years">
 <span class="drought-badge">2000-2005 drought</span>
 <span class="drought-badge">2009 drought</span>
 <span class="drought-badge">2011 drought</span>
-<span class="drought-badge">2015 El Nino</span>
+<span class="drought-badge">2015 El Niño</span>
 <span class="correct-badge">All correctly flagged</span>
 </div>
 </div>
@@ -192,25 +241,23 @@ st.markdown("""
 <section style="padding: 100px 40px; max-width: 1100px; margin: 0 auto;">
 <span class="section-tag" style="display:block; text-align:center; margin-bottom:16px">Under the Hood</span>
 <h2 style="font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 700; color: #f0f8f0; text-align: center; margin-bottom: 16px; letter-spacing: -0.5px;">Rigorous Science. Transparent Methods.</h2>
-<p style="font-family: 'Sora', sans-serif; font-size: 1rem; color: #7a9aaa; text-align: center; max-width: 640px; margin: 0 auto 64px auto; line-height: 1.8;">"Azmera is built on established climate science and open, institutional data — not a black box. Here's exactly how it works."
-
-</p>
+<p style="font-family: 'Sora', sans-serif; font-size: 1rem; color: #7a9aaa; text-align: center; max-width: 640px; margin: 0 auto 64px auto; line-height: 1.8;">Azmera is built on established climate science and open, institutional data — not a black box. Here's exactly how it works.</p>
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
 <div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px; grid-column: 1 / -1;">
 <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
 <span style="font-size: 1.8rem">🤖</span>
 <div>
 <div style="font-family: 'Sora', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #4a9060;">Core Model</div>
-<div style="font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 700; color: #c8e0d8;">XGBoost Ensemble Classifier</div>
+<div style="font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 700; color: #c8e0d8;">XGBoost Ensemble Classifier — 156 Zone Models</div>
 </div>
 </div>
-<p style="font-family: 'Sora', sans-serif; font-size: 0.92rem; color: #7a9aaa; line-height: 1.8;">Azmera uses an <b style="color:#c8e0d8">XGBoost (Extreme Gradient Boosting)</b> machine learning model — a proven, interpretable algorithm widely used in climate and agricultural forecasting. Trained on <b style="color:#c8e0d8">44 years</b> of NASA POWER satellite rainfall records (1981-2024) across all 13 Ethiopian administrative regions. XGBoost was chosen over deep learning specifically because it performs well on small, structured climate datasets and produces transparent, explainable outputs — critical for a food security tool.</p>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.92rem; color: #7a9aaa; line-height: 1.8;">Azmera uses <b style="color:#c8e0d8">XGBoost (Extreme Gradient Boosting)</b> — a proven, interpretable algorithm widely used in climate and agricultural forecasting. 156 models are trained: one per zone per season, using <b style="color:#c8e0d8">44 years</b> of CHIRPS 5km satellite rainfall records (1981-2024). Each zone model is calibrated independently to local rainfall patterns, capturing the variation that region-level models miss. XGBoost was chosen over deep learning for its performance on structured climate datasets and transparent, explainable outputs — critical for a food security tool.</p>
 </div>
 <div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px;">
 <span style="font-size: 1.8rem; display:block; margin-bottom: 12px;">🌊</span>
 <div style="font-family: 'Sora', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #4a9060; margin-bottom: 8px;">Input Features</div>
 <div style="font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; color: #c8e0d8; margin-bottom: 12px;">4 Ocean Climate Signals</div>
-<p style="font-family: 'Sora', sans-serif; font-size: 0.88rem; color: #7a9aaa; line-height: 1.8;">ENSO (Nino 3.4), Indian Ocean Dipole, Pacific Decadal Oscillation, and Atlantic SST — each with 3-month lag features and rolling averages. These ocean-atmosphere signals are the primary drivers of Ethiopian seasonal rainfall variability.</p>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.88rem; color: #7a9aaa; line-height: 1.8;">ENSO (Niño 3.4), Indian Ocean Dipole, Pacific Decadal Oscillation, and Atlantic SST — each with 3-month lag features and rolling averages. These ocean-atmosphere signals are the primary drivers of Ethiopian seasonal rainfall variability.</p>
 </div>
 <div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px;">
 <span style="font-size: 1.8rem; display:block; margin-bottom: 12px;">📊</span>
@@ -222,7 +269,7 @@ st.markdown("""
 <span style="font-size: 1.8rem; display:block; margin-bottom: 12px;">📡</span>
 <div style="font-family: 'Sora', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #4a9060; margin-bottom: 8px;">Data Sources</div>
 <div style="font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; color: #c8e0d8; margin-bottom: 12px;">100% Open and Free</div>
-<p style="font-family: 'Sora', sans-serif; font-size: 0.88rem; color: #7a9aaa; line-height: 1.8;">NASA POWER satellite rainfall · NOAA climate indices · WFP / HDX market prices. No proprietary data subscriptions. No vendor lock-in. Fully reproducible and auditable by any researcher or institution.</p>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.88rem; color: #7a9aaa; line-height: 1.8;">CHIRPS 5km satellite rainfall · NOAA climate indices · WFP / HDX market prices. No proprietary data subscriptions. No vendor lock-in. Fully reproducible and auditable by any researcher or institution.</p>
 </div>
 <div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px;">
 <span style="font-size: 1.8rem; display:block; margin-bottom: 12px;">🎯</span>
@@ -245,25 +292,25 @@ st.markdown("""
 <span class="audience-icon">👨‍🌾</span>
 <div class="audience-role">Farmers</div>
 <div class="audience-title-sm">Plain language. Local crops. Amharic.</div>
-<p class="audience-desc">Know whether to plant drought-tolerant Sorghum (Mashilla) or higher-yield Teff this season. Get water preparation advice 3 months before the rains. No climate science degree required.</p>
+<p class="audience-desc">Know whether to plant drought-tolerant Sorghum (Mashilla) or higher-yield Teff this season. Get water preparation advice 3 months before the rains. Forecasts now available at the zone level — specific to your woreda, not just your region.</p>
 </div>
 <div class="audience-card">
 <span class="audience-icon">🏛️</span>
 <div class="audience-role">NGOs and Humanitarian Orgs</div>
-<div class="audience-title-sm">Early warning. Region-specific. Free.</div>
-<p class="audience-desc">Integrate Azmera's regional drought probabilities into food security response planning. Combines climate forecasts with live WFP market price data — all from a single dashboard.</p>
+<div class="audience-title-sm">Early warning. Zone-specific. Free.</div>
+<p class="audience-desc">Integrate Azmera's zone-level drought probabilities into food security response planning. 78 zones across Ethiopia, each with its own calibrated forecast. Combines climate outlooks with live WFP market price data — all from a single dashboard.</p>
 </div>
 <div class="audience-card">
 <span class="audience-icon">🏛️</span>
 <div class="audience-role">Government and Policy</div>
-<div class="audience-title-sm">13 regions. 2 seasons. Reproducible.</div>
-<p class="audience-desc">Seasonal outlooks for all 13 Ethiopian administrative regions, for both Kiremt and Belg seasons. Validated against 44 years of historical data. Complementary to ICPAC and NMA forecasts.</p>
+<div class="audience-title-sm">78 zones. 2 seasons. Reproducible.</div>
+<p class="audience-desc">Seasonal outlooks for all 78 Ethiopian zones across both Kiremt and Belg seasons. Validated against 44 years of historical data. Interactive risk map with region → zone drill-down. Complementary to ICPAC and NMA forecasts.</p>
 </div>
 <div class="audience-card">
 <span class="audience-icon">💡</span>
 <div class="audience-role">Investors and Partners</div>
 <div class="audience-title-sm">Scalable. Open data. Impact-driven.</div>
-<p class="audience-desc">Built entirely on free, open data sources — NASA, NOAA, WFP HDX. No proprietary data dependencies. Designed to integrate with existing agritech platforms like Lersha as a forecasting engine.</p>
+<p class="audience-desc">Built entirely on free, open data sources — CHIRPS, NOAA, WFP HDX. No proprietary data dependencies. Zone-level granularity with interactive mapping. Designed to integrate with existing agritech platforms as a forecasting engine.</p>
 </div>
 </div>
 </div>
@@ -274,16 +321,18 @@ st.markdown("""
 st.markdown("""
 <section class="final-cta">
 <h2 class="final-title">The harvest begins<br>with a forecast.</h2>
-<p class="final-sub" style="text-align:center; margin-left:auto; margin-right:auto;">Select your region, choose your season, and get an AI-powered rainfall outlook with farmer-ready crop recommendations — in under 30 seconds.</p>
+<p class="final-sub" style="text-align:center; margin-left:auto; margin-right:auto;">Select your region or zone, choose your season, and get an AI-powered rainfall outlook with farmer-ready crop recommendations — in under 30 seconds.</p>
 <div class="hero-cta-group">
 <a href="https://azmera-forecast.streamlit.app" target="_blank" class="cta-primary">🔮 Open Azmera Forecast →</a>
 </div>
 <div class="data-sources">
-<span class="source-pill">📡 NASA POWER</span>
+<span class="source-pill">📡 CHIRPS 5km Satellite</span>
 <span class="source-pill">🌊 NOAA Climate Indices</span>
 <span class="source-pill">🌾 WFP / HDX Market Prices</span>
-<span class="source-pill">🤖 XGBoost ML Model</span>
-<span class="source-pill">🗣️ OpenAI Amharic Advisory</span>
+<span class="source-pill">🤖 156 XGBoost Zone Models</span>
+<span class="source-pill">🗺️ Interactive Zone Map</span>
+<span class="source-pill">🌧️ CHIRPS Observed Rainfall</span>
+<span class="source-pill">🗣️ AI Amharic Advisory</span>
 </div>
 </section>
 """, unsafe_allow_html=True)

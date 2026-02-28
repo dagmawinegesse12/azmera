@@ -11,7 +11,11 @@ import sys
 import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
-from forecaster import forecast, get_latest_indices, get_food_prices
+from forecaster import forecast, forecast_zone, get_zones_for_region, get_latest_indices, get_food_prices
+from gee_features import render_gee_panel, init_gee
+from map_component import render_risk_map, get_all_forecasts
+from chirps_anomaly import get_season_anomaly, get_latest_month_rainfall
+init_gee()  # Initialize GEE at startup
 
 # ── Caching ───────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
@@ -21,6 +25,10 @@ def cached_food_prices(region_key):
 @st.cache_data(ttl=3600)
 def cached_indices():
     return get_latest_indices()
+
+@st.cache_data(ttl=3600)
+def cached_all_forecasts(season_key):
+    return get_all_forecasts(season_key, forecast)
 
 # ── Page config ───────────────────────────────────────────────────
 st.set_page_config(
@@ -38,7 +46,7 @@ st.markdown("""
 * { font-family: 'Sora', sans-serif; }
 
 .main { background-color: #080c14; }
-.block-container { padding-top: 2rem; padding-bottom: 2rem; }
+.block-container { padding-top: 3rem; padding-bottom: 2rem; }
 
 .verdict-card {
     border-radius: 20px;
@@ -214,6 +222,10 @@ def explain_pdo(val):
         return "🔵 Cool Pacific", "Can dampen El Niño effects slightly"
     return "⚪ Neutral Pacific", "Pacific long-term cycle is neutral"
 
+# ── Globals (set in sidebar, used in main) ───────────────────────
+zone_key = None
+selected_zone = None
+
 # ── Sidebar ───────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("""
@@ -231,6 +243,16 @@ with st.sidebar:
     st.divider()
 
     region = st.selectbox("📍 Region", list(REGIONS.keys()), index=0)
+
+    # ── Zone selector ─────────────────────────────────────────────
+    _region_key = region.lower().replace(" ", "_")
+    _zones = get_zones_for_region(_region_key)
+    _zone_options = ["All zones (region-level)"] + [z["zone_display"] for z in _zones]
+    selected_zone = st.selectbox("🗺️ Zone", _zone_options, index=0)
+    if selected_zone != "All zones (region-level)":
+        zone_key = next((z["zone_key"] for z in _zones if z["zone_display"] == selected_zone), None)
+    else:
+        zone_key = None
 
     season_label = st.selectbox(
         "🌿 Season",
@@ -326,268 +348,353 @@ except Exception as e:
 
 st.write("")
 
-# ── Forecast output ───────────────────────────────────────────────
-if run:
-    region_key = region.lower().replace(" ", "_")
+# ── Tabs ──────────────────────────────────────────────────────────
+tab1, tab2 = st.tabs(["📊 Forecast", "🗺️ Risk Map"])
 
-    with st.spinner(f"Analyzing climate signals for {region}..."):
-        result = forecast(region_key, season_key)
+# ── Tab 1: Forecast ───────────────────────────────────────────────
+with tab1:
+    if run:
+        region_key = region.lower().replace(" ", "_")
 
-    pred    = result["prediction"]
-    conf    = result["confidence"]
-    p_below = result["prob_below"]
-    p_near  = result["prob_near"]
-    p_above = result["prob_above"]
+        if zone_key:
+            with st.spinner(f"Analyzing climate signals for {selected_zone}, {region}..."):
+                result = forecast_zone(zone_key, selected_zone, region_key, season_key)
+        else:
+            with st.spinner(f"Analyzing climate signals for {region}..."):
+                result = forecast(region_key, season_key)
 
-    if pred == "Below Normal":
-        verdict_class = "verdict-red"
-        verdict_icon  = "⚠️"
-        verdict_title = "Drought Risk — Prepare Now"
-        verdict_color = "#e74c3c"
-        verdict_msg   = f"Rainfall in {region} during {SEASON_MONTHS[season_key]} is likely to be below normal."
-    elif pred == "Above Normal":
-        verdict_class = "verdict-green"
-        verdict_icon  = "✅"
-        verdict_title = "Good Rains Likely"
-        verdict_color = "#27ae60"
-        verdict_msg   = f"Rainfall in {region} during {SEASON_MONTHS[season_key]} is likely to be above normal."
-    else:
-        verdict_class = "verdict-yellow"
-        verdict_icon  = "🌤️"
-        verdict_title = "Near Normal Season Expected"
-        verdict_color = "#d4a017"
-        verdict_msg   = f"Rainfall in {region} during {SEASON_MONTHS[season_key]} is likely to be close to average."
+        pred    = result["prediction"]
+        conf    = result["confidence"]
+        p_below = result["prob_below"]
+        p_near  = result["prob_near"]
+        p_above = result["prob_above"]
 
-    st.markdown(f"""
-    <div class="verdict-card {verdict_class}">
-        <div class="verdict-title" style="color:{verdict_color}">
-            {verdict_icon} {verdict_title}
+        location_label = f"{selected_zone}, {region}" if zone_key else region
+
+        if pred == "Below Normal":
+            verdict_class = "verdict-red"
+            verdict_icon  = "⚠️"
+            verdict_title = "Drought Risk — Prepare Now"
+            verdict_color = "#e74c3c"
+            verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be below normal."
+        elif pred == "Above Normal":
+            verdict_class = "verdict-green"
+            verdict_icon  = "✅"
+            verdict_title = "Good Rains Likely"
+            verdict_color = "#27ae60"
+            verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be above normal."
+        else:
+            verdict_class = "verdict-yellow"
+            verdict_icon  = "🌤️"
+            verdict_title = "Near Normal Season Expected"
+            verdict_color = "#d4a017"
+            verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be close to average."
+        st.markdown(f"""
+        <div class="verdict-card {verdict_class}">
+            <div class="verdict-title" style="color:{verdict_color}">
+                {verdict_icon} {verdict_title}
+            </div>
+            <div class="verdict-subtitle">{verdict_msg}</div>
         </div>
-        <div class="verdict-subtitle">{verdict_msg}</div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    conf_pct   = int(conf * 100)
-    conf_color = "#27ae60" if conf > 0.6 else \
-                 "#d4a017" if conf > 0.45 else "#e74c3c"
+        conf_pct   = int(conf * 100)
+        conf_color = "#27ae60" if conf > 0.6 else \
+                     "#d4a017" if conf > 0.45 else "#e74c3c"
 
-    st.markdown(f"""
-    <div class="explainer">
-        <b style="color:#c8d8e8">Model confidence: {conf_pct}%</b>
-        {"— High confidence. Ocean signals are strong and consistent." if conf > 0.6 else
-         "— Moderate confidence. Some uncertainty in the forecast." if conf > 0.45 else
-         "— Lower confidence. Climate signals are mixed — prepare for variability."}
-        <div class="conf-bar-wrap" style="margin-top:10px">
-            <div class="conf-bar-fill"
-                 style="width:{conf_pct}%; background:{conf_color}"></div>
+        st.markdown(f"""
+        <div class="explainer">
+            <b style="color:#c8d8e8">Model confidence: {conf_pct}%</b>
+            {"— High confidence. Ocean signals are strong and consistent." if conf > 0.6 else
+             "— Moderate confidence. Some uncertainty in the forecast." if conf > 0.45 else
+             "— Lower confidence. Climate signals are mixed — prepare for variability."}
+            <div class="conf-bar-wrap" style="margin-top:10px">
+                <div class="conf-bar-fill"
+                     style="width:{conf_pct}%; background:{conf_color}"></div>
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns([1, 1])
+        # ── CHIRPS Observed Rainfall ──────────────────────────────
+        st.markdown('<p class="section-label">Observed Rainfall</p>', unsafe_allow_html=True)
+        cc1, cc2 = st.columns(2)
 
-    with col1:
-        st.markdown('<p class="section-label">Probability Breakdown</p>',
+        with cc1:
+            try:
+                anomaly = get_season_anomaly(region_key, season_key)
+                if anomaly:
+                    a_color = {
+                        "Above Normal": "#27ae60",
+                        "Near Normal":  "#d4a017",
+                        "Below Normal": "#e74c3c"
+                    }.get(anomaly["status"], "#4a6080")
+                    a_icon = {
+                        "Above Normal": "💧",
+                        "Near Normal":  "🌤️",
+                        "Below Normal": "⚠️"
+                    }.get(anomaly["status"], "🌧️")
+                    season_str = "Full Season" if anomaly["completed"] else "Season-to-date"
+                    st.markdown(f"""
+                    <div class="signal-pill">
+                        <span class="signal-label">{anomaly["season"]} {anomaly["year"]} — {season_str}</span>
+                        <span class="signal-value" style="color:{a_color}">{a_icon} {anomaly["total_mm"]}mm &nbsp;·&nbsp; {anomaly["anomaly_pct"]:+.1f}% vs baseline</span>
+                        <span class="signal-meaning">{anomaly["status"]} &nbsp;·&nbsp; Baseline {anomaly["baseline_mean"]}mm (1991–2020 avg)</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+            except Exception as e:
+                st.caption(f"Rainfall anomaly unavailable: {e}")
+
+        with cc2:
+            try:
+                latest = get_latest_month_rainfall(region_key)
+                if latest:
+                    st.markdown(f"""
+                    <div class="signal-pill">
+                        <span class="signal-label">Latest Available — {latest["label"]}</span>
+                        <span class="signal-value">🌧️ {latest["rainfall"]}mm</span>
+                        <span class="signal-meaning">Most recent CHIRPS observation &nbsp;·&nbsp; Source: CHIRPS v2.0</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+            except Exception as e:
+                st.caption(f"Latest rainfall unavailable: {e}")
+
+        st.write("")
+
+        # ── Probability + Historical chart ────────────────────────
+        col1, col2 = st.columns([1, 1])
+
+        with col1:
+            st.markdown('<p class="section-label">Probability Breakdown</p>',
+                        unsafe_allow_html=True)
+
+            for label, prob, color, icon in [
+                ("Drought (Below Normal)",    p_below, "#e74c3c", "⚠️"),
+                ("Normal Season",             p_near,  "#d4a017", "🌤️"),
+                ("Good Rains (Above Normal)", p_above, "#27ae60", "✅"),
+            ]:
+                pct = int(prob * 100)
+                st.markdown(f"""
+                <div style="margin-bottom:14px">
+                    <div style="display:flex; justify-content:space-between;
+                                margin-bottom:5px">
+                        <span style="color:#c8d8e8; font-size:0.9rem">
+                            {icon} {label}
+                        </span>
+                        <span style="color:{color}; font-weight:600;
+                                     font-size:0.9rem">{pct}%</span>
+                    </div>
+                    <div class="conf-bar-wrap">
+                        <div class="conf-bar-fill"
+                             style="width:{pct}%; background:{color}">
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        with col2:
+            st.markdown('<p class="section-label">Historical Rainfall for This Season</p>',
+                        unsafe_allow_html=True)
+            try:
+                DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/processed/seasonal_enriched.parquet")
+                seasonal_v3 = pd.read_parquet(DATA_PATH)
+
+                region_hist = seasonal_v3[
+                    (seasonal_v3["region"] == region_key) &
+                    (seasonal_v3["season"] == season_key)
+                ].copy()
+
+                bar_colors = region_hist["target"].map(
+                    {0: "#e74c3c", 1: "#d4a017", 2: "#27ae60"}
+                )
+
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=region_hist["year"],
+                    y=region_hist["spi"],
+                    marker_color=bar_colors,
+                    hovertemplate="<b>%{x}</b><br>%{customdata}<extra></extra>",
+                    customdata=region_hist["target"].map(
+                        {0: "⚠️ Drought year",
+                         1: "🌤️ Normal year",
+                         2: "✅ Good rains"}
+                    )
+                ))
+                fig.add_hline(y=0,    line_color="#4a6080", line_width=1)
+                fig.add_hline(y=-0.5, line_color="#e74c3c", line_dash="dot", line_width=1)
+                fig.add_hline(y=0.5,  line_color="#27ae60", line_dash="dot", line_width=1)
+
+                fig.update_layout(
+                    xaxis_title="Year",
+                    yaxis_title="Rainfall anomaly",
+                    plot_bgcolor="#080c14",
+                    paper_bgcolor="#080c14",
+                    font=dict(color="#7a90a8", size=11),
+                    height=220,
+                    margin=dict(l=10, r=10, t=10, b=30),
+                    showlegend=False,
+                    xaxis=dict(gridcolor="#1a2030"),
+                    yaxis=dict(gridcolor="#1a2030"),
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            except Exception as e:
+                st.info("Historical chart unavailable")
+
+        # ── Farmer advisory ───────────────────────────────────────
+        st.markdown('<p class="section-label">What Should Farmers Do?</p>',
                     unsafe_allow_html=True)
 
-        for label, prob, color, icon in [
-            ("Drought (Below Normal)",    p_below, "#e74c3c", "⚠️"),
-            ("Normal Season",             p_near,  "#d4a017", "🌤️"),
-            ("Good Rains (Above Normal)", p_above, "#27ae60", "✅"),
-        ]:
-            pct = int(prob * 100)
-            st.markdown(f"""
-            <div style="margin-bottom:14px">
-                <div style="display:flex; justify-content:space-between;
-                            margin-bottom:5px">
-                    <span style="color:#c8d8e8; font-size:0.9rem">
-                        {icon} {label}
-                    </span>
-                    <span style="color:{color}; font-weight:600;
-                                 font-size:0.9rem">{pct}%</span>
-                </div>
-                <div class="conf-bar-wrap">
-                    <div class="conf-bar-fill"
-                         style="width:{pct}%; background:{color}">
+        advisory_text = result["advisory_am"] if "አማርኛ" in language \
+                        else result["advisory_en"]
+
+        lines = [l.strip() for l in advisory_text.split("\n") if l.strip()]
+
+        advisory_items = "".join([
+            f'<div style="margin-bottom:14px; color:#c8d8e8; font-size:0.97rem; line-height:1.6">{line}</div>'
+            for line in lines if line.strip()
+        ])
+
+        st.markdown(f"""
+        <div class="advisory-card">
+            <div class="advisory-title">
+                AI-Generated Advisory · {region} · {season_key} Season
+            </div>
+            {advisory_items}
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── WFP Food Prices ───────────────────────────────────────
+        st.markdown('<p class="section-label">📊 Current Market Prices (WFP Data)</p>',
+                    unsafe_allow_html=True)
+
+        with st.spinner("Loading market prices..."):
+            prices = cached_food_prices(region_key)
+
+        if prices:
+            cols = st.columns(len(prices))
+            for i, p in enumerate(prices):
+                with cols[i]:
+                    st.markdown(f"""
+                    <div class="signal-pill" style="text-align:center">
+                        <span class="signal-label">{p['crop']}</span>
+                        <span class="signal-value" style="font-size:1.3rem">
+                            {p['price_etb']:,.0f}
+                        </span>
+                        <span class="signal-meaning">ETB / quintal (100kg)</span>
+                        <span style="font-size:1.1rem">{p['trend']}</span>
+                        <span class="signal-meaning">{p['trend_str']}</span>
                     </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("""
+            <div style="color:#3a4a5a; font-size:0.75rem; margin-top:8px">
+                📡 Source: WFP VAM / HDX — Ethiopia market prices.
+                1 quintal = 100kg. Prices vary by market and region.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("Market price data temporarily unavailable.")
+
+        # ── GEE Satellite Panel ───────────────────────────────────
+        render_gee_panel(region.strip())
+
+        # ── Disclaimer ────────────────────────────────────────────
+        st.markdown("""
+        <div style="color:#3a4a5a; font-size:0.78rem; margin-top:20px;
+                    text-align:center; line-height:1.6">
+            Azmera is an early warning tool. Forecasts are probabilistic
+            and should be used alongside local knowledge and official advisories
+            from ICPAC and Ethiopia's National Meteorological Institute (NMA).
+        </div>
+        """, unsafe_allow_html=True)
+
+    else:
+        # ── Default landing state ─────────────────────────────────
+        st.markdown("""
+        <div style="text-align:center; padding:48px 0 32px 0">
+            <div style="font-size:3.5rem; margin-bottom:16px">🌾</div>
+            <h2 style="color:#c8d8e8; font-weight:600;
+                       letter-spacing:-0.5px; margin-bottom:8px">
+                Select a region to get started
+            </h2>
+            <p style="color:#4a6080; font-size:0.95rem; max-width:480px;
+                      margin:0 auto; line-height:1.7">
+                Choose your region and farming season from the sidebar,
+                then click <b style="color:#7a90a8">Generate Forecast</b>
+                to see the AI-powered seasonal outlook.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("""
+            <div class="signal-pill" style="text-align:center; padding:24px">
+                <div style="font-size:1.8rem; margin-bottom:8px">📡</div>
+                <div style="color:#c8d8e8; font-weight:600;
+                            margin-bottom:6px">4 Climate Signals</div>
+                <div style="color:#4a6080; font-size:0.85rem">
+                    ENSO, IOD, PDO and Atlantic SST
+                    analyzed together
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown("""
+            <div class="signal-pill" style="text-align:center; padding:24px">
+                <div style="font-size:1.8rem; margin-bottom:8px">📊</div>
+                <div style="color:#c8d8e8; font-weight:600;
+                            margin-bottom:6px">44 Years of Data</div>
+                <div style="color:#4a6080; font-size:0.85rem">
+                    Trained on 1981–2024 rainfall
+                    records across 13 regions
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col3:
+            st.markdown("""
+            <div class="signal-pill" style="text-align:center; padding:24px">
+                <div style="font-size:1.8rem; margin-bottom:8px">🗣️</div>
+                <div style="color:#c8d8e8; font-weight:600;
+                            margin-bottom:6px">Amharic Advisory</div>
+                <div style="color:#4a6080; font-size:0.85rem">
+                    AI-generated farmer guidance
+                    in English and Amharic
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-    with col2:
-        st.markdown('<p class="section-label">Historical Rainfall for This Season</p>',
-                    unsafe_allow_html=True)
-        try:
-            DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/processed/seasonal_enriched.parquet")
-            seasonal_v3 = pd.read_parquet(DATA_PATH)
+        st.write("")
+        if os.path.exists("../docs/validation_chart.png"):
+            st.markdown('<p class="section-label">Model Validation — Oromia 1981–2024</p>',
+                        unsafe_allow_html=True)
+            st.image("../docs/validation_chart.png",
+                     caption="Azmera correctly flagged all 4 drought-affected regions during Ethiopia's worst drought in 50 years (2015)",
+                     use_container_width=True)
 
-            region_hist = seasonal_v3[
-                (seasonal_v3["region"] == region_key) &
-                (seasonal_v3["season"] == season_key)
-            ].copy()
-
-            bar_colors = region_hist["target"].map(
-                {0: "#e74c3c", 1: "#d4a017", 2: "#27ae60"}
-            )
-
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=region_hist["year"],
-                y=region_hist["spi"],
-                marker_color=bar_colors,
-                hovertemplate="<b>%{x}</b><br>%{customdata}<extra></extra>",
-                customdata=region_hist["target"].map(
-                    {0: "⚠️ Drought year",
-                     1: "🌤️ Normal year",
-                     2: "✅ Good rains"}
-                )
-            ))
-            fig.add_hline(y=0,    line_color="#4a6080", line_width=1)
-            fig.add_hline(y=-0.5, line_color="#e74c3c", line_dash="dot", line_width=1)
-            fig.add_hline(y=0.5,  line_color="#27ae60", line_dash="dot", line_width=1)
-
-            fig.update_layout(
-                xaxis_title="Year",
-                yaxis_title="Rainfall anomaly",
-                plot_bgcolor="#080c14",
-                paper_bgcolor="#080c14",
-                font=dict(color="#7a90a8", size=11),
-                height=220,
-                margin=dict(l=10, r=10, t=10, b=30),
-                showlegend=False,
-                xaxis=dict(gridcolor="#1a2030"),
-                yaxis=dict(gridcolor="#1a2030"),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        except Exception as e:
-            st.info("Historical chart unavailable")
-
-    # ── Farmer advisory
-    st.markdown('<p class="section-label">What Should Farmers Do?</p>',
+# ── Tab 2: Risk Map ───────────────────────────────────────────────
+with tab2:
+    st.markdown('<p class="section-label">Seasonal Forecast Risk — All Regions</p>',
                 unsafe_allow_html=True)
 
-    advisory_text = result["advisory_am"] if "አማርኛ" in language \
-                    else result["advisory_en"]
+    if "drill_region" not in st.session_state:
+        st.session_state["drill_region"] = None
 
-    lines = [l.strip() for l in advisory_text.split("\n") if l.strip()]
+    # Always sync map drill-down to sidebar region
+    st.session_state["drill_region"] = region
+    drill_region = region
 
-    advisory_items = "".join([
-        f'<div style="margin-bottom:14px; color:#c8d8e8; font-size:0.97rem; line-height:1.6">{line}</div>'
-        for line in lines if line.strip()
-    ])
+    with st.spinner("Loading forecasts..."):
+        all_forecasts = cached_all_forecasts(season_key)
 
-    st.markdown(f"""
-    <div class="advisory-card">
-        <div class="advisory-title">
-            AI-Generated Advisory · {region} · {season_key} Season
-        </div>
-        {advisory_items}
-    </div>
-    """, unsafe_allow_html=True)
+    clicked_region, clicked_zone = render_risk_map(
+        all_forecasts,
+        selected_region=drill_region,
+        selected_zone=selected_zone if zone_key else None,
+        season_key=season_key,
+        forecaster_fn=forecast_zone,
+    )
 
-    # ── WFP Food Prices
-    st.markdown('<p class="section-label">📊 Current Market Prices (WFP Data)</p>',
-                unsafe_allow_html=True)
-
-    with st.spinner("Loading market prices..."):
-        prices = cached_food_prices(region_key)
-
-    if prices:
-        cols = st.columns(len(prices))
-        for i, p in enumerate(prices):
-            with cols[i]:
-                st.markdown(f"""
-                <div class="signal-pill" style="text-align:center">
-                    <span class="signal-label">{p['crop']}</span>
-                    <span class="signal-value" style="font-size:1.3rem">
-                        {p['price_etb']:,.0f}
-                    </span>
-                    <span class="signal-meaning">ETB / quintal (100kg)</span>
-                    <span style="font-size:1.1rem">{p['trend']}</span>
-                    <span class="signal-meaning">{p['trend_str']}</span>
-                </div>
-                """, unsafe_allow_html=True)
-
-        st.markdown("""
-        <div style="color:#3a4a5a; font-size:0.75rem; margin-top:8px">
-            📡 Source: WFP VAM / HDX — Ethiopia market prices.
-            1 quintal = 100kg. Prices vary by market and region.
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.info("Market price data temporarily unavailable.")
-
-    # ── Disclaimer
-    st.markdown("""
-    <div style="color:#3a4a5a; font-size:0.78rem; margin-top:20px;
-                text-align:center; line-height:1.6">
-        Azmera is an early warning tool. Forecasts are probabilistic
-        and should be used alongside local knowledge and official advisories
-        from ICPAC and Ethiopia's National Meteorological Institute (NMA).
-    </div>
-    """, unsafe_allow_html=True)
-
-else:
-    # ── Default landing state
-    st.markdown("""
-    <div style="text-align:center; padding:48px 0 32px 0">
-        <div style="font-size:3.5rem; margin-bottom:16px">🌾</div>
-        <h2 style="color:#c8d8e8; font-weight:600;
-                   letter-spacing:-0.5px; margin-bottom:8px">
-            Select a region to get started
-        </h2>
-        <p style="color:#4a6080; font-size:0.95rem; max-width:480px;
-                  margin:0 auto; line-height:1.7">
-            Choose your region and farming season from the sidebar,
-            then click <b style="color:#7a90a8">Generate Forecast</b>
-            to see the AI-powered seasonal outlook.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("""
-        <div class="signal-pill" style="text-align:center; padding:24px">
-            <div style="font-size:1.8rem; margin-bottom:8px">📡</div>
-            <div style="color:#c8d8e8; font-weight:600;
-                        margin-bottom:6px">4 Climate Signals</div>
-            <div style="color:#4a6080; font-size:0.85rem">
-                ENSO, IOD, PDO and Atlantic SST
-                analyzed together
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown("""
-        <div class="signal-pill" style="text-align:center; padding:24px">
-            <div style="font-size:1.8rem; margin-bottom:8px">📊</div>
-            <div style="color:#c8d8e8; font-weight:600;
-                        margin-bottom:6px">44 Years of Data</div>
-            <div style="color:#4a6080; font-size:0.85rem">
-                Trained on 1981–2024 rainfall
-                records across 13 regions
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        st.markdown("""
-        <div class="signal-pill" style="text-align:center; padding:24px">
-            <div style="font-size:1.8rem; margin-bottom:8px">🗣️</div>
-            <div style="color:#c8d8e8; font-weight:600;
-                        margin-bottom:6px">Amharic Advisory</div>
-            <div style="color:#4a6080; font-size:0.85rem">
-                AI-generated farmer guidance
-                in English and Amharic
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.write("")
-    if os.path.exists("../docs/validation_chart.png"):
-        st.markdown('<p class="section-label">Model Validation — Oromia 1981–2024</p>',
-                    unsafe_allow_html=True)
-        st.image("../docs/validation_chart.png",
-                 caption="Azmera correctly flagged all 4 drought-affected regions during Ethiopia's worst drought in 50 years (2015)",
-                 use_container_width=True)
+    if clicked_region and clicked_region != drill_region:
+        st.session_state["drill_region"] = clicked_region
+        st.rerun()

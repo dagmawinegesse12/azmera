@@ -18,8 +18,12 @@ load_dotenv()
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(BASE_DIR, "../models")
 DATA_DIR   = os.path.join(BASE_DIR, "../data/raw")
+ZONE_MODELS_DIR = os.path.join(BASE_DIR, "../models/zones")
 
-# ── Load model and encoder ────────────────────────────────────────
+# Minimum CV accuracy to show a zone forecast (below this = fall back to region)
+ZONE_CV_THRESHOLD = 0.0  # Show all zones, confidence indicated in UI
+
+# ── Load region model and encoder ─────────────────────────────────
 def load_model():
     with open(os.path.join(MODELS_DIR, "azmera_model_v3.pkl"), "rb") as f:
         model = pickle.load(f)
@@ -29,9 +33,63 @@ def load_model():
         feature_cols = pickle.load(f)
     return model, le, feature_cols
 
+# ── Load zone model ───────────────────────────────────────────────
+_ZONE_MODEL_CACHE = {}
+
+def load_zone_model(zone_key, season_key):
+    """Load a zone-level model. Cached in memory after first load."""
+    cache_key = f"{zone_key}_{season_key.lower()}"
+    if cache_key in _ZONE_MODEL_CACHE:
+        return _ZONE_MODEL_CACHE[cache_key]
+    path = os.path.join(ZONE_MODELS_DIR, f"{cache_key}.pkl")
+    if not os.path.exists(path):
+        _ZONE_MODEL_CACHE[cache_key] = None
+        return None
+    with open(path, "rb") as f:
+        model = pickle.load(f)
+    _ZONE_MODEL_CACHE[cache_key] = model
+    return model
+
+# ── Load zone centroids ───────────────────────────────────────────
+def load_zone_centroids():
+    path = os.path.join(BASE_DIR, "../data/zone_centroids.csv")
+    return pd.read_csv(path)
+
+# ── Get zones for a region ────────────────────────────────────────
+def get_zones_for_region(region_key):
+    """Return list of zones for a given region key."""
+    # Normalise region key to match centroids file
+    centroids = load_zone_centroids()
+
+    # Map app region keys → centroid region keys
+    REGION_KEY_MAP = {
+        "oromia":             "oromia",
+        "amhara":             "amhara",
+        "tigray":             "tigray",
+        "snnpr":              "southernnationsnationalities",
+        "sidama":             "southernnationsnationalities",
+        "south_west":         "southernnationsnationalities",
+        "afar":               "afar",
+        "somali":             "somali",
+        "gambela":            "gambelapeoples",
+        "benishangul_gumz":   "benshangul_gumaz",
+        "addis_ababa":        "addisabeba",
+        "dire_dawa":          "diredawa",
+        "harari":             "hararipeople",
+    }
+
+    centroid_region = REGION_KEY_MAP.get(region_key, region_key)
+    zones = centroids[centroids["region_key"] == centroid_region]
+    return zones[["zone_key", "zone_display"]].to_dict("records")
+
 # ── Load latest climate indices ───────────────────────────────────
+_INDICES_CACHE = None
+
 def get_latest_indices():
-    """Load most recent ENSO, IOD, PDO, Atlantic SST values."""
+    """Load most recent ENSO, IOD, PDO, Atlantic SST values. Cached in memory."""
+    global _INDICES_CACHE
+    if _INDICES_CACHE is not None:
+        return _INDICES_CACHE
     enso = pd.read_csv(os.path.join(DATA_DIR, "enso_index.csv"),
                        parse_dates=["date"]).sort_values("date")
     iod  = pd.read_csv(os.path.join(DATA_DIR, "iod_index.csv"),
@@ -41,7 +99,6 @@ def get_latest_indices():
     atl  = pd.read_csv(os.path.join(DATA_DIR, "atlantic_sst.csv"),
                        parse_dates=["date"]).sort_values("date")
 
-    # Filter out missing value codes before taking last 3
     iod  = iod[iod["iod"]  > -999]
     pdo  = pdo[pdo["pdo"]  > -9.0]
     enso = enso[enso["enso"].notna()]
@@ -50,12 +107,13 @@ def get_latest_indices():
     def last3(df, col):
         return df[col].dropna().tail(3).values
 
-    return {
+    _INDICES_CACHE = {
         "enso": last3(enso, "enso"),
         "iod":  last3(iod,  "iod"),
         "pdo":  last3(pdo,  "pdo"),
         "atl":  last3(atl,  "atlantic_sst"),
     }
+    return _INDICES_CACHE
 
 def get_food_prices(region):
     """
@@ -115,14 +173,12 @@ def get_food_prices(region):
         df = pd.read_csv(io.StringIO(r.text))
         df["date"] = pd.to_datetime(df["date"])
 
-        # Filter by region
         hdx_region = REGION_MAP.get(region.lower(), "Oromia")
         region_df  = df[
             (df["admin1"] == hdx_region) &
             (df["commodity"].isin(KEY_CROPS))
         ].copy()
 
-        # Filter outliers
         region_df = region_df[region_df["price"] >= 100]
 
         if region_df.empty:
@@ -131,7 +187,6 @@ def get_food_prices(region):
                 (df["price"] >= 100)
             ].copy()
 
-        # ── Monthly comparison ────────────────────────────────────
         latest_date = region_df["date"].max()
         this_month  = latest_date - pd.DateOffset(months=1)
         last_month  = latest_date - pd.DateOffset(months=2)
@@ -164,7 +219,6 @@ def get_food_prices(region):
         latest["label"]    = latest["commodity"].map(CROP_LABELS)
         latest["date_str"] = latest_date.strftime("%b %Y")
 
-        # ── Build output ──────────────────────────────────────────
         results    = []
         seen_labels = set()
 
@@ -208,10 +262,7 @@ def get_food_prices(region):
         print(f"Food prices error: {e}")
         return []
 
-    except Exception as e:
-        print(f"Food prices error: {e}")
-        return []
-# ── Build feature vector ──────────────────────────────────────────
+# ── Build feature vector (region model) ───────────────────────────
 def build_features(region, season, indices, le):
     """Build the 19-feature vector for a given region and season."""
 
@@ -220,7 +271,6 @@ def build_features(region, season, indices, le):
     pdo3  = indices["pdo"]
     atl3  = indices["atl"]
 
-    # Safely get lag values
     def safe_get(arr, i):
         try: return float(arr[-(i)])
         except: return 0.0
@@ -242,22 +292,54 @@ def build_features(region, season, indices, le):
         "atlantic_lag2":    safe_get(atl3,  2),
         "atlantic_lag3":    safe_get(atl3,  3),
         "atlantic_3mo_mean":float(np.mean(atl3)),
-        "spi_lag3":         0.0,  # neutral — no prior season data
+        "spi_lag3":         0.0,
         "region_encoded":   int(le.transform([region.lower()])[0]),
         "is_kiremt":        1 if season == "Kiremt" else 0,
     }
 
     return pd.DataFrame([features])
 
-# ── Main forecast function ────────────────────────────────────────
-def forecast(region, season):
+# ── Build feature vector (zone model) ────────────────────────────
+def build_zone_features(indices, spi_lag1=0.0):
+    """Build feature vector for zone model (no region encoding needed)."""
+    enso3 = indices["enso"]
+    iod3  = indices["iod"]
+    pdo3  = indices["pdo"]
+    atl3  = indices["atl"]
+
+    def safe_get(arr, i):
+        try: return float(arr[-(i)])
+        except: return 0.0
+
+    return {
+        "enso_lag1":         safe_get(enso3, 1),
+        "enso_lag2":         safe_get(enso3, 2),
+        "enso_lag3":         safe_get(enso3, 3),
+        "enso_3mo_mean":     float(np.mean(enso3)),
+        "iod_lag1":          safe_get(iod3,  1),
+        "iod_lag2":          safe_get(iod3,  2),
+        "iod_lag3":          safe_get(iod3,  3),
+        "iod_3mo_mean":      float(np.mean(iod3)),
+        "pdo_lag1":          safe_get(pdo3,  1),
+        "pdo_lag2":          safe_get(pdo3,  2),
+        "pdo_lag3":          safe_get(pdo3,  3),
+        "pdo_3mo_mean":      float(np.mean(pdo3)),
+        "atlantic_lag1":     safe_get(atl3,  1),
+        "atlantic_lag2":     safe_get(atl3,  2),
+        "atlantic_lag3":     safe_get(atl3,  3),
+        "atlantic_3mo_mean": float(np.mean(atl3)),
+        "spi_lag1":          spi_lag1,
+    }
+
+# ── Main region forecast function ─────────────────────────────────
+def forecast(region, season, fast=False):
     """
     Generate seasonal rainfall forecast for a region.
-    
+
     Args:
-        region: Ethiopian region name (e.g. 'oromia')
-        season: 'Kiremt' (Jun-Sep) or 'Belg' (Mar-May)
-    
+        region: Ethiopian region key (e.g. 'oromia')
+        season: 'Kiremt' or 'Belg'
+
     Returns:
         dict with probabilities, prediction, confidence, advisory
     """
@@ -267,35 +349,117 @@ def forecast(region, season):
     X = build_features(region, season, indices, le)
     X = X[feature_cols]
 
-    probs     = model.predict_proba(X)[0]
-    pred      = model.predict(X)[0]
+    probs      = model.predict_proba(X)[0]
+    pred       = model.predict(X)[0]
     confidence = float(probs.max())
 
-    label_map = {0: "Below Normal", 1: "Near Normal", 2: "Above Normal"}
+    label_map  = {0: "Below Normal", 1: "Near Normal", 2: "Above Normal"}
     prediction = label_map[pred]
 
-    # ENSO context
-    enso_val  = float(indices["enso"][-1])
-    enso_str  = "El Niño" if enso_val > 0.5 else \
-                "La Niña" if enso_val < -0.5 else "Neutral"
+    enso_val = float(indices["enso"][-1])
+    enso_str = "El Niño" if enso_val > 0.5 else \
+               "La Niña" if enso_val < -0.5 else "Neutral"
 
     result = {
-        "region":       region,
-        "season":       season,
-        "prediction":   prediction,
-        "confidence":   confidence,
-        "prob_below":   float(probs[0]),
-        "prob_near":    float(probs[1]),
-        "prob_above":   float(probs[2]),
+        "region":      region,
+        "season":      season,
+        "prediction":  prediction,
+        "confidence":  confidence,
+        "prob_below":  float(probs[0]),
+        "prob_near":   float(probs[1]),
+        "prob_above":  float(probs[2]),
         "enso_current": enso_val,
-        "enso_phase":   enso_str,
-        "advisory_en":  generate_advisory(region, season, prediction,
-                                          confidence, enso_str, probs, "en"),
-        "advisory_am":  generate_advisory(region, season, prediction,
-                                          confidence, enso_str, probs, "am"),
+        "enso_phase":  enso_str,
+        "source":      "region",
     }
-
+    if not fast:
+        result["advisory_en"] = generate_advisory(region, season, prediction,
+                                                   confidence, enso_str, probs, "en")
+        result["advisory_am"] = generate_advisory(region, season, prediction,
+                                                   confidence, enso_str, probs, "am")
     return result
+
+# ── Zone forecast function ────────────────────────────────────────
+def forecast_zone(zone_key, zone_display, region_key, season, fast=False):
+    """
+    Generate zone-level forecast. Falls back to region if CV < threshold.
+
+    Args:
+        zone_key:     zone identifier e.g. 'arsi'
+        zone_display: display name e.g. 'Arsi'
+        region_key:   parent region e.g. 'oromia'
+        season:       'Kiremt' or 'Belg'
+
+    Returns:
+        dict with forecast + metadata about source and confidence
+    """
+    indices = get_latest_indices()
+    label_map = {0: "Below Normal", 1: "Near Normal", 2: "Above Normal"}
+
+    # Try zone model first
+    zone_data = load_zone_model(zone_key, season)
+
+    if zone_data is not None:
+        cv_accuracy = zone_data["metrics"]["cv_accuracy"]
+
+        if cv_accuracy >= ZONE_CV_THRESHOLD:
+            # Use zone model
+            model        = zone_data["model"]
+            feature_cols = zone_data["feature_cols"]
+
+            features = build_zone_features(indices)
+            X = pd.DataFrame([features])[feature_cols]
+
+            probs      = model.predict_proba(X)[0]
+            pred       = model.predict(X)[0]
+            confidence = float(probs.max())
+            prediction = label_map[pred]
+
+            enso_val = float(indices["enso"][-1])
+            enso_str = "El Niño" if enso_val > 0.5 else \
+                       "La Niña" if enso_val < -0.5 else "Neutral"
+
+            result = {
+                "zone":        zone_display,
+                "zone_key":    zone_key,
+                "region":      region_key,
+                "season":      season,
+                "prediction":  prediction,
+                "confidence":  confidence,
+                "prob_below":  float(probs[0]),
+                "prob_near":   float(probs[1]),
+                "prob_above":  float(probs[2]),
+                "enso_current": enso_val,
+                "enso_phase":  enso_str,
+                "cv_accuracy": cv_accuracy,
+                "source":      "zone",
+            }
+            if not fast:
+                result["advisory_en"] = generate_advisory(
+                    zone_display, season, prediction,
+                    confidence, enso_str, probs, "en")
+                result["advisory_am"] = generate_advisory(
+                    zone_display, season, prediction,
+                    confidence, enso_str, probs, "am")
+            return result
+        else:
+            # Zone model exists but low skill — fall back to region
+            result = forecast(region_key, season, fast=fast)
+            result["zone"]        = zone_display
+            result["zone_key"]    = zone_key
+            result["source"]      = "region_fallback"
+            result["cv_accuracy"] = cv_accuracy
+            result["fallback_reason"] = f"Zone model skill too low ({cv_accuracy:.0%} CV)"
+            return result
+    else:
+        # No zone model — fall back to region
+        result = forecast(region_key, season, fast=fast)
+        result["zone"]        = zone_display
+        result["zone_key"]    = zone_key
+        result["source"]      = "region_fallback"
+        result["cv_accuracy"] = None
+        result["fallback_reason"] = "No zone model available"
+        return result
 
 # ── Advisory text generation ──────────────────────────────────────
 def generate_advisory(region, season, prediction, confidence,
@@ -375,18 +539,21 @@ def generate_advisory(region, season, prediction, confidence,
 if __name__ == "__main__":
     print("Testing Azmera Forecast Engine...\n")
 
+    # Test region forecast
     result = forecast("oromia", "Kiremt")
-
     print(f"Region:     {result['region'].title()}")
-    print(f"Season:     {result['season']}")
-    print(f"Prediction: {result['prediction']}")
-    print(f"Confidence: {result['confidence']:.1%}")
-    print(f"ENSO:       {result['enso_phase']} ({result['enso_current']:.2f})")
-    print(f"\nProbabilities:")
-    print(f"  Below Normal: {result['prob_below']:.1%}")
-    print(f"  Near Normal:  {result['prob_near']:.1%}")
-    print(f"  Above Normal: {result['prob_above']:.1%}")
-    print(f"\n── English Advisory ──")
-    print(result["advisory_en"])
-    print(f"\n── Amharic Advisory ──")
-    print(result["advisory_am"])
+    print(f"Prediction: {result['prediction']} ({result['confidence']:.0%})")
+
+    # Test zone forecast
+    print("\nTesting zone forecast — Arsi, Kiremt...")
+    zone_result = forecast_zone("arsi", "Arsi", "oromia", "Kiremt")
+    print(f"Zone:       {zone_result['zone']}")
+    print(f"Prediction: {zone_result['prediction']} ({zone_result['confidence']:.0%})")
+    print(f"Source:     {zone_result['source']}")
+    if zone_result.get('cv_accuracy'):
+        print(f"CV accuracy: {zone_result['cv_accuracy']:.0%}")
+
+    # Test zone list
+    print("\nZones in Oromia:")
+    for z in get_zones_for_region("oromia"):
+        print(f"  {z['zone_display']}")
