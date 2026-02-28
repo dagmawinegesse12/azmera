@@ -26,16 +26,15 @@ REGION_GEOMETRIES = {
     "Southwest Ethiopia":{"lat":  7.0, "lon": 35.8, "buffer":  80000},
 }
 
-
 def init_gee():
     try:
         try:
             print(f"GEE debug — available secret keys: {list(st.secrets.keys())}")
             key_dict = dict(st.secrets["gee"])
-            print(f"GEE debug — gee keys found: {list(key_dict.keys())}")
+            key_str = json.dumps(key_dict)  # convert dict → JSON string
             service_account = key_dict["client_email"]
             credentials = ee.ServiceAccountCredentials(
-                service_account, key_data=key_dict
+                service_account, key_data=key_str
             )
             ee.Initialize(credentials)
             print("GEE init success!")
@@ -46,13 +45,13 @@ def init_gee():
             print(f"GEE secret error: {e}")
 
         # Fall back to local
-        
         key_path = os.path.expanduser("~/secrets/azmera-gee-key.json")
         if os.path.exists(key_path):
             with open(key_path) as f:
-                key_dict = json.load(f)
+                key_str = f.read()
+            key_dict = json.loads(key_str)
             service_account = key_dict["client_email"]
-            credentials = ee.ServiceAccountCredentials(service_account, key_path)
+            credentials = ee.ServiceAccountCredentials(service_account, key_data=key_str)
             ee.Initialize(credentials)
             return True
 
