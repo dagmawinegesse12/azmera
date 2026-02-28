@@ -12,10 +12,15 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
 from forecaster import forecast, forecast_zone, get_zones_for_region, get_latest_indices, get_food_prices
-from gee_features import render_gee_panel, init_gee
 from map_component import render_risk_map, get_all_forecasts
 from chirps_anomaly import get_season_anomaly, get_latest_month_rainfall
-init_gee()  # Initialize GEE at startup
+
+try:
+    from gee_features import render_gee_panel, init_gee
+    init_gee()
+    GEE_AVAILABLE = True
+except Exception:
+    GEE_AVAILABLE = False
 
 # ── Caching ───────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
@@ -596,7 +601,9 @@ with tab1:
             st.info("Market price data temporarily unavailable.")
 
         # ── GEE Satellite Panel ───────────────────────────────────
-        render_gee_panel(region.strip())
+        if GEE_AVAILABLE:
+            
+            render_gee_panel(region.strip())
 
         # ── Disclaimer ────────────────────────────────────────────
         st.markdown("""
