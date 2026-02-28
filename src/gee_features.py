@@ -26,26 +26,33 @@ REGION_GEOMETRIES = {
     "Southwest Ethiopia":{"lat":  7.0, "lon": 35.8, "buffer":  80000},
 }
 
-def init_gee():
-    try:
-        try:
-            print(f"GEE debug — available secret keys: {list(st.secrets.keys())}")
-            key_dict = dict(st.secrets["gee"])
-            key_str = json.dumps(key_dict)  # convert dict → JSON string
-            service_account = key_dict["client_email"]
-            credentials = ee.ServiceAccountCredentials(
-                service_account, key_data=key_str
-            )
-            ee.Initialize(credentials)
-            print("GEE init success!")
-            return True
-        except KeyError as e:
-            print(f"GEE secret KeyError: {e}")
-        except Exception as e:
-            print(f"GEE secret error: {e}")
 
-        # Fall back to local
+def init_gee():
+    # ── Try Streamlit Cloud secrets ───────────────────────────────
+    try:
+        all_keys = list(st.secrets.keys())
+        print(f"GEE debug — all secret keys: {all_keys}")
+
+        if "gee" not in st.secrets:
+            print("GEE debug — no [gee] section found in secrets")
+        else:
+            key_dict = dict(st.secrets["gee"])
+            print(f"GEE debug — gee section keys: {list(key_dict.keys())}")
+            key_str = json.dumps(key_dict)   # MUST be JSON string, not dict
+            service_account = key_dict["client_email"]
+            print(f"GEE debug — service account: {service_account}")
+            credentials = ee.ServiceAccountCredentials(service_account, key_data=key_str)
+            ee.Initialize(credentials)
+            print("GEE init success via Streamlit secrets!")
+            return True
+
+    except Exception as e:
+        print(f"GEE secrets path failed: {type(e).__name__}: {e}")
+
+    # ── Fall back to local key file ───────────────────────────────
+    try:
         key_path = os.path.expanduser("~/secrets/azmera-gee-key.json")
+        print(f"GEE debug — trying local key at: {key_path}")
         if os.path.exists(key_path):
             with open(key_path) as f:
                 key_str = f.read()
@@ -53,15 +60,17 @@ def init_gee():
             service_account = key_dict["client_email"]
             credentials = ee.ServiceAccountCredentials(service_account, key_data=key_str)
             ee.Initialize(credentials)
+            print("GEE init success via local key file!")
             return True
-
-        print("GEE init failed: no credentials found")
-        return False
-
+        else:
+            print(f"GEE debug — local key file not found at {key_path}")
     except Exception as e:
-        print(f"GEE init failed: {e}")
-        return False
-    
+        print(f"GEE local key path failed: {type(e).__name__}: {e}")
+
+    print("GEE init failed: no working credentials found")
+    return False
+
+
 def get_region_geometry(region_name):
     r = REGION_GEOMETRIES.get(region_name)
     if not r:
@@ -127,7 +136,6 @@ def get_chirps_rainfall(region_name, months_back=3):
             .filterDate(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
             .filterBounds(geometry)
         )
-        # Use mean daily rainfall for fair comparison
         current_mean = collection.mean().reduceRegion(
             reducer=ee.Reducer.mean(), geometry=geometry, scale=5000, maxPixels=1e9
         ).getInfo().get("precipitation", None)
