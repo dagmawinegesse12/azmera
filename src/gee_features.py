@@ -29,31 +29,34 @@ REGION_GEOMETRIES = {
 
 def init_gee():
     try:
-        use_secrets = False
+        # Try Streamlit Cloud secrets first
         try:
-            use_secrets = "GEE_SERVICE_ACCOUNT" in st.secrets
+            if "gee" in st.secrets:
+                key_dict = json.loads(st.secrets["gee"]["json_data"])
+                service_account = key_dict["client_email"]
+                credentials = ee.ServiceAccountCredentials(
+                    service_account, key_data=key_dict
+                )
+                ee.Initialize(credentials)
+                return True
         except Exception:
-            use_secrets = False
-        if use_secrets:
-            service_account = st.secrets["GEE_SERVICE_ACCOUNT"]
-            key_data = st.secrets["GEE_PRIVATE_KEY"]
-            if isinstance(key_data, str) and key_data.strip().startswith("{"):
-                key_dict = json.loads(key_data)
-            else:
-                key_dict = key_data
-            credentials = ee.ServiceAccountCredentials(service_account, key_data=key_dict)
-        else:
-            key_path = os.path.expanduser("~/secrets/azmera-gee-key.json")
+            pass
+
+        # Fall back to local key file
+        key_path = os.path.expanduser("~/secrets/azmera-gee-key.json")
+        if os.path.exists(key_path):
             with open(key_path) as f:
                 key_dict = json.load(f)
             service_account = key_dict["client_email"]
             credentials = ee.ServiceAccountCredentials(service_account, key_path)
-        ee.Initialize(credentials)
-        return True
+            ee.Initialize(credentials)
+            return True
+
+        return False
+
     except Exception as e:
         print(f"GEE init failed: {e}")
         return False
-
 
 def get_region_geometry(region_name):
     r = REGION_GEOMETRIES.get(region_name)
