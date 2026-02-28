@@ -28,44 +28,40 @@ REGION_GEOMETRIES = {
 
 
 def init_gee():
-    # ── Try Streamlit Cloud secrets ───────────────────────────────
+    # ── Try Streamlit Cloud secrets (flat GEE_KEY string) ─────────
     try:
-        all_keys = list(st.secrets.keys())
-        print(f"GEE debug — all secret keys: {all_keys}")
-
-        if "gee" not in st.secrets:
-            print("GEE debug — no [gee] section found in secrets")
-        else:
-            key_dict = dict(st.secrets["gee"])
-            print(f"GEE debug — gee section keys: {list(key_dict.keys())}")
-            key_str = json.dumps(key_dict)   # MUST be JSON string, not dict
-            service_account = key_dict["client_email"]
-            print(f"GEE debug — service account: {service_account}")
-            credentials = ee.ServiceAccountCredentials(service_account, key_data=key_str)
+        if "GEE_KEY" in st.secrets:
+            print("GEE debug — found GEE_KEY in secrets")
+            key_str = st.secrets["GEE_KEY"]
+            key_dict = json.loads(key_str)
+            credentials = ee.ServiceAccountCredentials(
+                key_dict["client_email"], key_data=key_str
+            )
             ee.Initialize(credentials)
-            print("GEE init success via Streamlit secrets!")
+            print("GEE init success via GEE_KEY secret!")
             return True
-
+        else:
+            print(f"GEE debug — GEE_KEY not found, keys are: {list(st.secrets.keys())}")
     except Exception as e:
         print(f"GEE secrets path failed: {type(e).__name__}: {e}")
 
     # ── Fall back to local key file ───────────────────────────────
     try:
         key_path = os.path.expanduser("~/secrets/azmera-gee-key.json")
-        print(f"GEE debug — trying local key at: {key_path}")
         if os.path.exists(key_path):
             with open(key_path) as f:
                 key_str = f.read()
             key_dict = json.loads(key_str)
-            service_account = key_dict["client_email"]
-            credentials = ee.ServiceAccountCredentials(service_account, key_data=key_str)
+            credentials = ee.ServiceAccountCredentials(
+                key_dict["client_email"], key_data=key_str
+            )
             ee.Initialize(credentials)
             print("GEE init success via local key file!")
             return True
         else:
-            print(f"GEE debug — local key file not found at {key_path}")
+            print(f"GEE debug — local key not found at {key_path}")
     except Exception as e:
-        print(f"GEE local key path failed: {type(e).__name__}: {e}")
+        print(f"GEE local key failed: {type(e).__name__}: {e}")
 
     print("GEE init failed: no working credentials found")
     return False
