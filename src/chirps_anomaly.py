@@ -30,6 +30,8 @@ REGION_COORDS = {
 SEASON_MONTHS = {
     "Kiremt": [6, 7, 8, 9],
     "Belg":   [3, 4, 5],
+    "OND":    [10, 11, 12],
+    "Bega":   [1, 2],
 }
 
 

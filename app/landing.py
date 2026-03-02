@@ -141,7 +141,7 @@ st.markdown("""
 <span class="step-number">02</span>
 <span class="step-icon">🤖</span>
 <div class="step-title">Run 156 Zone-Level Models</div>
-<p class="step-desc">156 XGBoost models — one per zone per season — trained on 44 years of CHIRPS 5km satellite rainfall data predict whether Kiremt or Belg will be below, near, or above normal. Each zone is calibrated independently to its own local rainfall patterns.</p>
+<p class="step-desc">156 statistical models — one per zone per season — trained on 44 years of CHIRPS 5km satellite rainfall data predict whether Kiremt or Belg will be below, near, or above normal. Each zone is calibrated independently to its own local rainfall patterns.</p>
 </div>
 <div class="step-card">
 <span class="step-number">03</span>
@@ -165,7 +165,7 @@ st.markdown("""
 <div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px; text-align:center;">
 <span style="font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 900; color: #4a9060; display:block; margin-bottom:8px;">78</span>
 <span style="font-family: 'Sora', sans-serif; font-size: 0.85rem; color: #4a7080; text-transform:uppercase; letter-spacing:2px;">Zones Modeled</span>
-<p style="font-family: 'Sora', sans-serif; font-size: 0.85rem; color: #4a7080; line-height:1.7; margin-top:12px;">Separate XGBoost models trained for each zone × season combination using CHIRPS 5km satellite rainfall data going back to 1981</p>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.85rem; color: #4a7080; line-height:1.7; margin-top:12px;">Separate models trained for each zone × season combination using CHIRPS 5km satellite rainfall data going back to 1981</p>
 </div>
 <div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px; text-align:center;">
 <span style="font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 900; color: #4a9060; display:block; margin-bottom:8px;">156</span>
@@ -248,10 +248,10 @@ st.markdown("""
 <span style="font-size: 1.8rem">🤖</span>
 <div>
 <div style="font-family: 'Sora', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #4a9060;">Core Model</div>
-<div style="font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 700; color: #c8e0d8;">XGBoost Ensemble Classifier — 156 Zone Models</div>
+<div style="font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 700; color: #c8e0d8;">Logistic Regression Ensemble — 156 Zone Models</div>
 </div>
 </div>
-<p style="font-family: 'Sora', sans-serif; font-size: 0.92rem; color: #7a9aaa; line-height: 1.8;">Azmera uses <b style="color:#c8e0d8">XGBoost (Extreme Gradient Boosting)</b> — a proven, interpretable algorithm widely used in climate and agricultural forecasting. 156 models are trained: one per zone per season, using <b style="color:#c8e0d8">44 years</b> of CHIRPS 5km satellite rainfall records (1981-2024). Each zone model is calibrated independently to local rainfall patterns, capturing the variation that region-level models miss. XGBoost was chosen over deep learning for its performance on structured climate datasets and transparent, explainable outputs — critical for a food security tool.</p>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.92rem; color: #7a9aaa; line-height: 1.8;">Azmera uses <b style="color:#c8e0d8">Logistic Regression (L2 regularised)</b> — the method recommended by climate forecasting literature for small datasets, with well-calibrated probabilities and transparent, explainable outputs critical for a food security tool. 156 models are trained: one per zone per season, using <b style="color:#c8e0d8">44 years</b> of CHIRPS 5km satellite rainfall records (1981-2024). Each zone model is calibrated independently to local rainfall patterns, capturing the variation that region-level models miss. Logistic Regression was chosen over more complex models specifically because our dataset size (42 years per zone) favours simpler, regularised approaches that generalise better under leave-one-out validation.</p>
 </div>
 <div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px;">
 <span style="font-size: 1.8rem; display:block; margin-bottom: 12px;">🌊</span>
@@ -329,7 +329,7 @@ st.markdown("""
 <span class="source-pill">📡 CHIRPS 5km Satellite</span>
 <span class="source-pill">🌊 NOAA Climate Indices</span>
 <span class="source-pill">🌾 WFP / HDX Market Prices</span>
-<span class="source-pill">🤖 156 XGBoost Zone Models</span>
+<span class="source-pill">🤖 156 Zone Models</span>
 <span class="source-pill">🗺️ Interactive Zone Map</span>
 <span class="source-pill">🌧️ CHIRPS Observed Rainfall</span>
 <span class="source-pill">🗣️ AI Amharic Advisory</span>

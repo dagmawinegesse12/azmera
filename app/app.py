@@ -14,6 +14,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
 from forecaster import forecast, forecast_zone, get_zones_for_region, get_latest_indices, get_food_prices
 from map_component import render_risk_map, get_all_forecasts
 from chirps_anomaly import get_season_anomaly, get_latest_month_rainfall
+from validation import render_validation_tab
 
 try:
     from gee_features import render_gee_panel, init_gee
@@ -192,6 +193,8 @@ REGIONS = {
 SEASON_MONTHS = {
     "Kiremt": "June – September",
     "Belg":   "March – May",
+    "OND":    "October – December",
+    "Bega":   "January – February",
 }
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -260,10 +263,22 @@ with st.sidebar:
 
     season_label = st.selectbox(
         "🌿 Season",
-        ["Kiremt — Main rains (Jun–Sep)", "Belg — Short rains (Mar–May)"],
+        [
+            "Kiremt — Main rains (Jun–Sep)",
+            "Belg — Short rains (Mar–May)",
+            "OND — Short rains (Oct–Dec)",
+            "Bega — Dry season rains (Jan–Feb)",
+        ],
         index=0
     )
-    season_key = "Kiremt" if "Kiremt" in season_label else "Belg"
+    if "Kiremt" in season_label:
+        season_key = "Kiremt"
+    elif "Belg" in season_label:
+        season_key = "Belg"
+    elif "OND" in season_label:
+        season_key = "OND"
+    else:
+        season_key = "Bega"
 
     language = st.radio("🌐 Language", ["English", "አማርኛ Amharic"], index=0)
 
@@ -353,11 +368,146 @@ except Exception as e:
 st.write("")
 
 # ── Tabs ──────────────────────────────────────────────────────────
-tab1, tab2 = st.tabs(["📊 Forecast", "🗺️ Risk Map"])
+tab1, tab2, tab3 = st.tabs(["📊 Forecast", "🗺️ Risk Map", "🔬 Validation"])
 
 # ── Tab 1: Forecast ───────────────────────────────────────────────
 with tab1:
-    if run:
+
+    # ── Tier 2: Monitoring-only for OND and Bega ──────────────────
+    if run and season_key in ("OND", "Bega"):
+        region_key = region.lower().replace(" ", "_")
+
+        season_info = {
+            "OND": {
+                "months":  "October – December",
+                "driver":  "IOD (Indian Ocean Dipole)",
+                "regions": "Somali, SNNPR, Sidama, Dire Dawa",
+                "note":    "OND is the main rainy season for southern and eastern Ethiopia. "
+                           "Statistical forecast skill is currently insufficient for this season — "
+                           "satellite monitoring is provided instead.",
+            },
+            "Bega": {
+                "months":  "January – February",
+                "driver":  "IOD + Atlantic SST",
+                "regions": "Afar, Somali pastoralists",
+                "note":    "Bega is a minor dry-season rain important for pastoralists in Afar and Somali. "
+                           "Statistical forecast skill is currently insufficient — "
+                           "satellite monitoring is provided instead.",
+            },
+        }
+        info = season_info[season_key]
+
+        st.markdown(f"""
+        <div style="background:#0f1623; border:1px solid #d4a017;
+                    border-left:4px solid #d4a017; border-radius:0 14px 14px 0;
+                    padding:20px 24px; margin-bottom:24px">
+            <div style="font-size:0.72rem; text-transform:uppercase;
+                        letter-spacing:2px; color:#d4a017; margin-bottom:8px">
+                🛰️ SATELLITE MONITORING MODE
+            </div>
+            <div style="font-size:1.1rem; font-weight:600; color:#e0e8f0; margin-bottom:8px">
+                {season_key} Season ({info["months"]}) — {region}
+            </div>
+            <div style="color:#7a90a8; font-size:0.88rem; line-height:1.7">
+                {info["note"]}<br><br>
+                <b style="color:#c8d8e8">Primary climate driver:</b> {info["driver"]}<br>
+                <b style="color:#c8d8e8">Most affected regions:</b> {info["regions"]}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Observed rainfall
+        st.markdown('<p class="section-label">Observed Rainfall — Current Season</p>',
+                    unsafe_allow_html=True)
+        cc1, cc2 = st.columns(2)
+        with cc1:
+            try:
+                anomaly = get_season_anomaly(region_key, season_key)
+                if anomaly:
+                    a_color = {"Above Normal": "#27ae60", "Near Normal": "#d4a017",
+                               "Below Normal": "#e74c3c"}.get(anomaly["status"], "#4a6080")
+                    a_icon  = {"Above Normal": "💧", "Near Normal": "🌤️",
+                               "Below Normal": "⚠️"}.get(anomaly["status"], "🌧️")
+                    season_str = "Full Season" if anomaly["completed"] else "Season-to-date"
+                    st.markdown(f"""
+                    <div class="signal-pill">
+                        <span class="signal-label">{anomaly["season"]} {anomaly["year"]} — {season_str}</span>
+                        <span class="signal-value" style="color:{a_color}">{a_icon} {anomaly["total_mm"]}mm &nbsp;·&nbsp; {anomaly["anomaly_pct"]:+.1f}% vs baseline</span>
+                        <span class="signal-meaning">{anomaly["status"]} &nbsp;·&nbsp; Baseline {anomaly["baseline_mean"]}mm (1991–2020 avg)</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("Rainfall data not yet available for this season.")
+            except Exception as e:
+                st.caption(f"Rainfall anomaly unavailable: {e}")
+        with cc2:
+            try:
+                latest = get_latest_month_rainfall(region_key)
+                if latest:
+                    st.markdown(f"""
+                    <div class="signal-pill">
+                        <span class="signal-label">Latest — {latest["label"]}</span>
+                        <span class="signal-value">🌧️ {latest["rainfall"]}mm</span>
+                        <span class="signal-meaning">Most recent CHIRPS observation &nbsp;·&nbsp; Source: CHIRPS v2.0</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+            except Exception as e:
+                st.caption(f"Latest rainfall unavailable: {e}")
+
+        # Historical chart
+        st.markdown(f'<p class="section-label">Historical {season_key} Rainfall 1981–2022</p>',
+                    unsafe_allow_html=True)
+        try:
+            DATA_PATH   = os.path.join(os.path.dirname(__file__), "../data/processed/seasonal_4seasons.parquet")
+            seasonal_4s = pd.read_parquet(DATA_PATH)
+            region_hist = seasonal_4s[
+                (seasonal_4s["region"] == region_key) &
+                (seasonal_4s["season"] == season_key)
+            ].copy()
+            if not region_hist.empty:
+                bar_colors = region_hist["target"].map({0: "#e74c3c", 1: "#d4a017", 2: "#27ae60"})
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=region_hist["year"], y=region_hist["spi"],
+                    marker_color=bar_colors,
+                    hovertemplate="<b>%{x}</b><br>%{customdata}<extra></extra>",
+                    customdata=region_hist["target"].map(
+                        {0: "⚠️ Drought year", 1: "🌤️ Normal year", 2: "✅ Good rains"})
+                ))
+                fig.add_hline(y=0,    line_color="#4a6080", line_width=1)
+                fig.add_hline(y=-0.5, line_color="#e74c3c", line_dash="dot", line_width=1)
+                fig.add_hline(y=0.5,  line_color="#27ae60", line_dash="dot", line_width=1)
+                fig.update_layout(
+                    plot_bgcolor="#080c14", paper_bgcolor="#080c14",
+                    font=dict(color="#7a90a8", size=11), height=220,
+                    margin=dict(l=10, r=10, t=10, b=30), showlegend=False,
+                    xaxis=dict(gridcolor="#1a2030"), yaxis=dict(gridcolor="#1a2030"),
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption("Red=Below Normal · Yellow=Near Normal · Green=Above Normal")
+            else:
+                st.info("No historical data available for this region/season.")
+        except Exception as e:
+            st.info(f"Historical chart unavailable: {e}")
+
+        # GEE satellite panel
+        if GEE_AVAILABLE:
+            render_gee_panel(region.strip())
+
+        # Coming soon notice
+        st.markdown("""
+        <div style="background:#0a0e18; border-left:3px solid #4a6080;
+                    border-radius:0 10px 10px 0; padding:14px 18px; margin-top:20px;
+                    color:#8a9ab0; font-size:0.85rem; line-height:1.8">
+            <b style="color:#c8d8e8">Statistical forecast in development</b><br>
+            We are building a validated statistical model for this season.
+            Improving OND and Bega forecast skill requires additional gridded spatial
+            data and longer training records. Follow Azmera updates for when this launches.
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Tier 1: Full forecast for Kiremt and Belg ─────────────────
+    elif run:
         region_key = region.lower().replace(" ", "_")
 
         if zone_key:
@@ -393,6 +543,7 @@ with tab1:
             verdict_title = "Near Normal Season Expected"
             verdict_color = "#d4a017"
             verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be close to average."
+
         st.markdown(f"""
         <div class="verdict-card {verdict_class}">
             <div class="verdict-title" style="color:{verdict_color}">
@@ -601,7 +752,6 @@ with tab1:
 
         # ── GEE Satellite Panel ───────────────────────────────────
         if GEE_AVAILABLE:
-            
             render_gee_panel(region.strip())
 
         # ── Disclaimer ────────────────────────────────────────────
@@ -704,3 +854,7 @@ with tab2:
     if clicked_region and clicked_region != drill_region:
         st.session_state["drill_region"] = clicked_region
         st.rerun()
+
+# ── Tab 3: Validation ─────────────────────────────────────────────
+with tab3:
+    render_validation_tab()
