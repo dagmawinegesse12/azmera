@@ -1,12 +1,12 @@
 """
 Azmera — Zone-level Model Training
-Trains XGBoost forecast models for all 79 Ethiopian zones.
+Trains Logistic Regression (L2, C=0.5) forecast models for all 79 Ethiopian zones.
 Run after build_zone_data.py completes.
 """
 
 import pandas as pd
 import numpy as np
-import xgboost as xgb
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.metrics import accuracy_score
 import pickle
@@ -72,17 +72,13 @@ def build_features(zone_df, indices_df, zone_key, season_key):
 
 # ── Train one zone model ──────────────────────────────────────────
 def train_zone_model(X, y, zone_key, season_key):
-    """Train XGBoost model for one zone/season."""
-    model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=3,
-        learning_rate=0.1,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        use_label_encoder=False,
-        eval_metric="mlogloss",
+    """Train Logistic Regression model for one zone/season."""
+    model = LogisticRegression(
+        C=0.5,
+        max_iter=1000,
+        class_weight="balanced",
+        solver="lbfgs",
         random_state=42,
-        verbosity=0,
     )
 
     if len(np.unique(y)) < 2 or len(X) < 15:
