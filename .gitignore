@@ -30,3 +30,4 @@ notebooks/
 .DS_Store
 
 streamlit_secrets.txt
+*.pkl
