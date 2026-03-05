@@ -407,7 +407,9 @@ def forecast_zone(zone_key, zone_display, region_key, season, fast=False):
             model        = zone_data["model"]
             feature_cols = zone_data["feature_cols"]
 
-            features = build_zone_features(indices)
+            from src.chirps_anomaly import get_zone_spi_lag1
+            spi_lag1 = get_zone_spi_lag1(zone_key, season)
+            features = build_zone_features(indices, spi_lag1=spi_lag1)
             X = pd.DataFrame([features])[feature_cols]
 
             probs      = model.predict_proba(X)[0]

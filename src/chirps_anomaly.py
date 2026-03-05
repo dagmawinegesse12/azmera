@@ -146,3 +146,79 @@ def get_season_anomaly(region_key, season):
         "completed":        completed,
         "label":            "Full season" if completed else "Season-to-date",
     }
+
+
+# ── Zone centroid coords (loaded once) ───────────────────────────
+_ZONE_CENTROIDS = None
+
+def _get_zone_centroids():
+    global _ZONE_CENTROIDS
+    if _ZONE_CENTROIDS is not None:
+        return _ZONE_CENTROIDS
+    path = os.path.join(BASE_DIR, "../data/zone_centroids.csv")
+    df = pd.read_csv(path)
+    _ZONE_CENTROIDS = df.drop_duplicates("zone_key").set_index("zone_key")[["lat", "lon"]].to_dict("index")
+    return _ZONE_CENTROIDS
+
+
+# ── Zone baseline (loaded once) ───────────────────────────────────
+_ZONE_BASELINE = None
+
+def _get_zone_baseline():
+    global _ZONE_BASELINE
+    if _ZONE_BASELINE is not None:
+        return _ZONE_BASELINE
+    path = os.path.join(BASE_DIR, "../data/zone_chirps_baseline.csv")
+    df = pd.read_csv(path)
+    _ZONE_BASELINE = df.set_index(["zone_key", "season"]).to_dict("index")
+    return _ZONE_BASELINE
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_zone_spi_lag1(zone_key, season):
+    """
+    Compute real spi_lag1 for a zone at inference time.
+    For a 2026 Kiremt forecast, fetches 2025 Kiremt CHIRPS for the zone
+    centroid and computes SPI against the 1991-2020 zone baseline.
+    Cached daily. Falls back to 0.0 (neutral) if data unavailable.
+    """
+    centroids = _get_zone_centroids()
+    baseline  = _get_zone_baseline()
+
+    if zone_key not in centroids:
+        return 0.0
+
+    baseline_key = (zone_key, season)
+    if baseline_key not in baseline:
+        return 0.0
+
+    lat           = centroids[zone_key]["lat"]
+    lon           = centroids[zone_key]["lon"]
+    baseline_mean = baseline[baseline_key]["baseline_mean"]
+    baseline_std  = baseline[baseline_key]["baseline_std"]
+
+    if baseline_std <= 0:
+        return 0.0
+
+    season_months = SEASON_MONTHS.get(season, [6, 7, 8, 9])
+    prev_year     = datetime.now().year - 1
+
+    total     = 0.0
+    available = []
+
+    for month in season_months:
+        data = _fetch_chirps(prev_year, month)
+        if data:
+            val = _extract_value(data, lat, lon)
+            if val is not None:
+                total += val
+                available.append(month)
+
+    if len(available) < len(season_months) // 2:
+        return 0.0
+
+    if len(available) < len(season_months):
+        total = total * len(season_months) / len(available)
+
+    spi = (total - baseline_mean) / baseline_std
+    return float(max(-3.0, min(3.0, spi)))
