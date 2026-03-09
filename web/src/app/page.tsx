@@ -191,7 +191,7 @@ export default function LandingPage() {
           className="text-2xl font-light tracking-widest mb-6"
           style={{ color: "var(--text-muted)", fontFamily: "var(--font-geist-sans, sans-serif)" }}
         >
-          አዝሜራ
+          አዝመራ
         </p>
 
         {/* Subtitle */}
@@ -208,7 +208,7 @@ export default function LandingPage() {
           style={{ color: "var(--text-muted)" }}
         >
           Azmera issues above-/near-/below-normal tercile outlooks for Ethiopia&apos;s 13
-          administrative regions using SST-based logistic regression — trained on CHIRPS
+          administrative regions using SST-based logistic regression trained on CHIRPS
           satellite data and validated over 27 years of rolling-origin hindcasts.
           Every forecast carries an explicit skill tier so meteorologists always know
           how much confidence the model warrants.
@@ -308,7 +308,7 @@ export default function LandingPage() {
           borderColor: "var(--background-border)",
         }}
       >
-        Built for Ethiopia&apos;s meteorological community &middot; March 2026
+        © 2026 Azmera · Created by Dagmawi Negesse · Built for Ethiopia&apos;s meteorological community
       </footer>
     </div>
   );
