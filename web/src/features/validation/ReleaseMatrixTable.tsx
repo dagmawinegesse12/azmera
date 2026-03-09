@@ -15,7 +15,8 @@ interface Props {
   season: SeasonKey;
 }
 
-function hssColorClass(hss: number): string {
+function hssColorClass(hss: number | null): string {
+  if (hss == null) return "text-text-muted";
   if (hss >= 0.1) return "text-emerald-400";
   if (hss > 0) return "text-amber-400";
   return "text-red-400";
@@ -137,14 +138,14 @@ export function ReleaseMatrixTable({ season }: Props) {
                       <span className={`font-mono text-xs font-semibold w-12 shrink-0 ${hssColorClass(row.ro_hss)}`}>
                         {formatHss(row.ro_hss)}
                       </span>
-                      <HSSBar value={row.ro_hss} />
+                      <HSSBar hss={row.ro_hss} />
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <SkillTierBadge tier={row.tier} />
                   </td>
                   <td className={`px-4 py-3 font-mono text-xs ${hssColorClass(row.cv_hss)}`}>
-                    {formatHss(row.cv_hss)}
+                    {row.cv_hss != null ? formatHss(row.cv_hss) : "—"}
                   </td>
                   <td className="px-4 py-3 text-text-secondary text-xs tabular-nums">
                     {row.n_test_years}
