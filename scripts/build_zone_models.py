@@ -7,20 +7,35 @@ Run after build_zone_data.py completes.
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_val_score, StratifiedKFold
-from sklearn.metrics import accuracy_score
+from sklearn.model_selection import LeaveOneGroupOut
+from sklearn.metrics import accuracy_score, cohen_kappa_score
 import pickle
 import os
 import sys
+import hashlib
+import datetime
+import sklearn
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
 
 MODELS_DIR = "models/zones"
 os.makedirs(MODELS_DIR, exist_ok=True)
 
+ZONE_DATA_PATH    = "data/processed/zone_rainfall.parquet"
+INDICES_DATA_PATH = "data/processed/seasonal_enriched.parquet"
+
+
+def _file_sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()[:12]
+
+
 # ── Load zone rainfall data ───────────────────────────────────────
 def load_zone_data():
-    df = pd.read_parquet("data/processed/zone_rainfall.parquet")
+    df = pd.read_parquet(ZONE_DATA_PATH)
     print(f"Loaded {len(df)} records, {df['zone_key'].nunique()} zones")
     return df
 
@@ -71,7 +86,7 @@ def build_features(zone_df, indices_df, zone_key, season_key):
     return X, y, merged, available
 
 # ── Train one zone model ──────────────────────────────────────────
-def train_zone_model(X, y, zone_key, season_key):
+def train_zone_model(X, y, merged_years, zone_key, season_key):
     """Train Logistic Regression model for one zone/season."""
     model = LogisticRegression(
         C=0.5,
@@ -84,14 +99,42 @@ def train_zone_model(X, y, zone_key, season_key):
     if len(np.unique(y)) < 2 or len(X) < 15:
         return None, None
 
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    scores = cross_val_score(model, X, y, cv=cv, scoring="accuracy")
-    cv_accuracy = scores.mean()
+    # Leave-one-year-out CV — no temporal leakage
+    logo = LeaveOneGroupOut()
+    years = merged_years  # passed in from caller
+
+    y_true_all, y_pred_all = [], []
+    for train_idx, test_idx in logo.split(X, y, groups=years):
+        if len(np.unique(y[train_idx])) < 2:
+            continue
+        m = LogisticRegression(C=0.5, max_iter=1000, class_weight="balanced",
+                               solver="lbfgs", random_state=42)
+        m.fit(X[train_idx], y[train_idx])
+        y_true_all.extend(y[test_idx])
+        y_pred_all.extend(m.predict(X[test_idx]))
+
+    if len(y_true_all) < 5:
+        return None, None
+
+    y_true_all = np.array(y_true_all)
+    y_pred_all = np.array(y_pred_all)
+    cv_accuracy = accuracy_score(y_true_all, y_pred_all)
+
+    # HSS (Heidke Skill Score) — same metric as region model
+    try:
+        cv_hss = cohen_kappa_score(y_true_all, y_pred_all)
+    except Exception:
+        cv_hss = 0.0
 
     model.fit(X, y)
     train_accuracy = accuracy_score(y, model.predict(X))
 
-    return model, {"cv_accuracy": round(cv_accuracy, 3), "train_accuracy": round(train_accuracy, 3), "n_samples": len(X)}
+    return model, {
+        "cv_accuracy": round(cv_accuracy, 3),
+        "cv_hss":      round(cv_hss, 3),
+        "train_accuracy": round(train_accuracy, 3),
+        "n_samples":   len(X),
+    }
 
 # ── Main training loop ────────────────────────────────────────────
 def train_all_zones():
@@ -119,7 +162,7 @@ def train_all_zones():
                     skipped += 1
                     continue
 
-                model, metrics = train_zone_model(X, y, zone_key, season_key)
+                model, metrics = train_zone_model(X, y, merged["year"].values, zone_key, season_key)
 
                 if model is None:
                     skipped += 1
@@ -136,6 +179,11 @@ def train_all_zones():
                         "region_key":   region_key,
                         "season":       season_key,
                         "metrics":      metrics,
+                        # ── Provenance ─────────────────────────────────────
+                        "trained_at":       datetime.datetime.utcnow().isoformat() + "Z",
+                        "sklearn_version":  sklearn.__version__,
+                        "zone_data_sha256": _file_sha256(ZONE_DATA_PATH),
+                        "python_version":   sys.version,
                     }, f)
 
                 results.append({

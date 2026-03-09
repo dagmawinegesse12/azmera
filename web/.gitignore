@@ -1,0 +1,33 @@
+# ── Next.js build output ──────────────────────────────────────────
+.next/
+out/
+
+# ── Dependencies ──────────────────────────────────────────────────
+node_modules/
+
+# ── Environment / secrets ─────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+# .env.example is intentionally kept — it is the public template
+
+# ── TypeScript build cache ────────────────────────────────────────
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# ── Debug / test output ───────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ── OS / editor clutter ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ── Vercel local dev ─────────────────────────────────────────────
+.vercel

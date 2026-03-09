@@ -1,0 +1,23 @@
+# ── Azmera API — production runtime dependencies ──────────────────
+# This file is used ONLY for the FastAPI backend (api/server.py).
+# It intentionally excludes Streamlit, rasterio, folium, and plotly —
+# none of which are imported by server.py or needed at runtime.
+#
+# Root requirements.txt retains the full Streamlit-era dependency list
+# and is used only for local development of app/ scripts.
+#
+# Deploy command: pip install -r api/requirements.txt
+# Start command:  uvicorn api.server:app --host 0.0.0.0 --port $PORT
+
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Required for advisory generation (gpt-4o via generate_advisory in forecaster.py).
+# The fallback _advisory_fallback() is used automatically when OPENAI_API_KEY
+# is absent or the API is unavailable — set the key for full advisory text.
+openai>=1.12.0

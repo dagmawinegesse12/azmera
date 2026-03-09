@@ -21,6 +21,10 @@ REGION_COORDS = {
     "somali":           (6.5,  44.0),
     "benishangul_gumz": (10.5, 35.5),
     "snnpr":            (6.5,  37.5),
+    # Sidama: representative coord near Hawassa (~regional centre)
+    "sidama":           (6.8,  38.5),
+    # South West: representative coord near Mizan Teferi
+    "south_west":       (7.0,  35.6),
     "gambela":          (8.0,  34.5),
     "harari":           (9.3,  42.1),
     "dire_dawa":        (9.6,  41.9),
@@ -174,51 +178,124 @@ def _get_zone_baseline():
     return _ZONE_BASELINE
 
 
+# ── Raster cache: one download per (year, month) ─────────────────
+# Cap at 12 entries (≈3 months × 4 seasons) to prevent unbounded memory growth.
+# Each decompressed CHIRPS Africa monthly TIF is ~4–8 MB.
+_RASTER_CACHE: dict = {}
+_RASTER_CACHE_MAX = 12
+
+
+def _fetch_chirps_cached(year, month):
+    """Download CHIRPS raster once per (year, month) and reuse in memory.
+    Evicts oldest entry when cache exceeds _RASTER_CACHE_MAX."""
+    key = (year, month)
+    if key not in _RASTER_CACHE:
+        if len(_RASTER_CACHE) >= _RASTER_CACHE_MAX:
+            # Remove oldest key (insertion-order guaranteed in Python 3.7+)
+            oldest = next(iter(_RASTER_CACHE))
+            del _RASTER_CACHE[oldest]
+        _RASTER_CACHE[key] = _fetch_chirps(year, month)
+    return _RASTER_CACHE[key]
+
+
 @st.cache_data(ttl=86400, show_spinner=False)
-def get_zone_spi_lag1(zone_key, season):
+def get_season_spi_lag1_all_zones(season):
     """
-    Compute real spi_lag1 for a zone at inference time.
-    For a 2026 Kiremt forecast, fetches 2025 Kiremt CHIRPS for the zone
-    centroid and computes SPI against the 1991-2020 zone baseline.
-    Cached daily. Falls back to 0.0 (neutral) if data unavailable.
+    Batch-compute spi_lag1 for ALL zones in one pass.
+    Downloads each monthly CHIRPS raster ONCE, extracts all zone coords.
+    Returns dict: {zone_key: spi_value}
+    Cached daily — called once per season, reused for all zones.
     """
-    centroids = _get_zone_centroids()
-    baseline  = _get_zone_baseline()
-
-    if zone_key not in centroids:
-        return 0.0
-
-    baseline_key = (zone_key, season)
-    if baseline_key not in baseline:
-        return 0.0
-
-    lat           = centroids[zone_key]["lat"]
-    lon           = centroids[zone_key]["lon"]
-    baseline_mean = baseline[baseline_key]["baseline_mean"]
-    baseline_std  = baseline[baseline_key]["baseline_std"]
-
-    if baseline_std <= 0:
-        return 0.0
-
+    centroids     = _get_zone_centroids()
+    baseline      = _get_zone_baseline()
     season_months = SEASON_MONTHS.get(season, [6, 7, 8, 9])
     prev_year     = datetime.now().year - 1
 
-    total     = 0.0
-    available = []
+    # Accumulate totals per zone
+    totals    = {zk: 0.0 for zk in centroids}
+    available = {zk: 0   for zk in centroids}
 
     for month in season_months:
-        data = _fetch_chirps(prev_year, month)
-        if data:
-            val = _extract_value(data, lat, lon)
+        data = _fetch_chirps_cached(prev_year, month)
+        if data is None:
+            continue
+        # Extract all zone coords from this single raster
+        for zone_key, coords in centroids.items():
+            val = _extract_value(data, coords["lat"], coords["lon"])
             if val is not None:
-                total += val
-                available.append(month)
+                totals[zone_key]    += val
+                available[zone_key] += 1
 
-    if len(available) < len(season_months) // 2:
+    # Compute SPI per zone
+    results = {}
+    for zone_key in centroids:
+        n = available[zone_key]
+        if n < len(season_months) // 2:
+            results[zone_key] = 0.0
+            continue
+        baseline_key = (zone_key, season)
+        if baseline_key not in baseline:
+            results[zone_key] = 0.0
+            continue
+        bm  = baseline[baseline_key]["baseline_mean"]
+        bsd = baseline[baseline_key]["baseline_std"]
+        if bsd <= 0:
+            results[zone_key] = 0.0
+            continue
+        total = totals[zone_key]
+        if n < len(season_months):
+            total = total * len(season_months) / n  # scale up partial season
+        spi = (total - bm) / bsd
+        results[zone_key] = float(max(-3.0, min(3.0, spi)))
+
+    return results
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_zone_spi_lag1(zone_key, season):
+    """
+    Get spi_lag1 for a single zone. Uses batch cache — no extra downloads.
+    Falls back to 0.0 (neutral) if data unavailable.
+    """
+    all_spis = get_season_spi_lag1_all_zones(season)
+    return all_spis.get(zone_key, 0.0)
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_region_belg_antecedent_anom_z(region_key, target_season):
+    """
+    Compute belg_antecedent_anom_z for a region at inference time.
+
+    For Kiremt forecasts:
+      Returns the z-score of Belg (Mar–May) rainfall for the current forecast
+      year, standardised against the 1991–2020 CHIRPS Belg climatology stored
+      in chirps_baseline.csv.
+
+      z = (belg_total_mm − baseline_mean) / baseline_std, clamped ±3.0
+
+      Feature name: belg_antecedent_anom_z
+      This is NOT gamma-SPI. It is a simple standardised anomaly (same method
+      used in build_chirps_antecedent.py and validate_rolling_origin.py).
+
+    For Belg forecasts:
+      Returns 0.0 — no clean DJF antecedent baseline exists.
+
+    Falls back to 0.0 on any CHIRPS download failure or missing baseline.
+    This is safe: the model was trained with real values but L2 regularisation
+    (C=0.5) limits the impact of a neutral 0.0 fallback.
+
+    Implementation reuses get_season_anomaly() which already handles:
+      • year inference from current date (current year for Jun–Oct calls)
+      • partial-season scaling (if May CHIRPS is delayed)
+      • CHIRPS download with fallback
+    """
+    if target_season != "Kiremt":
+        return 0.0   # Belg antecedent deferred — no clean DJF baseline
+
+    result = get_season_anomaly(region_key, "Belg")
+    if result is None:
         return 0.0
-
-    if len(available) < len(season_months):
-        total = total * len(season_months) / len(available)
-
-    spi = (total - baseline_mean) / baseline_std
-    return float(max(-3.0, min(3.0, spi)))
+    z = result.get("z_score", 0.0)
+    if z is None or (isinstance(z, float) and (z != z)):   # NaN check
+        return 0.0
+    return float(max(-3.0, min(3.0, z)))

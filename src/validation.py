@@ -45,71 +45,23 @@ DROUGHT_YEARS = {
     2016: "Continued El Niño impact",
 }
 
-# ── Industry benchmark data ───────────────────────────────────────
-# Sources: ICPAC verification reports, WMO/ECMWF published skill scores,
-# Diro et al. 2011 (ICPAC), Haile et al. 2009, Shukla et al. 2016 (ECMWF SEAS5)
-# Azmera figures updated to reflect LR C=0.5 LOOCV results
-INDUSTRY_COMPARISON = [
-    {
-        "year": 1984,
-        "type": "Neutral-year",
-        "driver": "Local atmospheric — no ocean precursor",
-        "azmera": "56%",
-        "icpac":  "0–5%",
-        "ecmwf":  "~0%",
-        "note":   "Neutral-year — Azmera LR detects residual signal; ICPAC/ECMWF miss entirely",
-    },
-    {
-        "year": 1994,
-        "type": "Neutral-year",
-        "driver": "Local atmospheric — weak IOD",
-        "azmera": "0%",
-        "icpac":  "0–10%",
-        "ecmwf":  "0–5%",
-        "note":   "Missed by all systems — weak teleconnection signal",
-    },
-    {
-        "year": 2002,
-        "type": "El Niño-driven",
-        "driver": "Moderate El Niño + positive IOD",
-        "azmera": "80%",
-        "icpac":  "60–70%",
-        "ecmwf":  "55–65%",
-        "note":   "Strong ocean signal — all systems performed well, Azmera leads",
-    },
-    {
-        "year": 2003,
-        "type": "Neutral-year",
-        "driver": "Local — residual El Niño decay",
-        "azmera": "48%",
-        "icpac":  "5–15%",
-        "ecmwf":  "~10%",
-        "note":   "Largely missed across all systems; Azmera picks up partial signal",
-    },
-    {
-        "year": 2009,
-        "type": "La Niña-driven",
-        "driver": "Moderate La Niña",
-        "azmera": "33%",
-        "icpac":  "40–55%",
-        "ecmwf":  "35–50%",
-        "note":   "Moderate skill — La Niña signal weaker than El Niño for Ethiopia",
-    },
-    {
-        "year": 2015,
-        "type": "El Niño-driven",
-        "driver": "Record El Niño — spatially uneven impact",
-        "azmera": "20%",
-        "icpac":  "10–25%",
-        "ecmwf":  "20–35%",
-        "note":   "Spatially heterogeneous — same El Niño caused drought in some regions, above-normal in others",
-    },
-]
+
+# These are the actual columns in data/validation_results.csv
+# NOTE: hss is NOT a column in the CSV — it is computed on-the-fly by compute_hss()
+_RESULTS_COLUMNS = ["region", "season", "year", "actual", "predicted",
+                    "correct", "prob_below", "prob_near", "prob_above"]
 
 
 @st.cache_data
 def load_results():
-    return pd.read_csv(RESULTS_PATH)
+    try:
+        return pd.read_csv(RESULTS_PATH)
+    except FileNotFoundError:
+        print(f"[Azmera] WARNING: {RESULTS_PATH} not found — validation tab will show placeholder.")
+        return pd.DataFrame(columns=_RESULTS_COLUMNS)
+    except Exception as e:
+        print(f"[Azmera] WARNING: Could not load validation results: {e}")
+        return pd.DataFrame(columns=_RESULTS_COLUMNS)
 
 
 def compute_hss(y_true, y_pred):
@@ -120,8 +72,45 @@ def compute_hss(y_true, y_pred):
     return (correct - expected) / (n - expected), cm
 
 
+def bootstrap_hss_ci(y_true, y_pred, n_bootstrap=1000, ci=0.95, seed=42):
+    """
+    Bootstrap confidence interval for HSS.
+    Resamples (y_true, y_pred) pairs with replacement n_bootstrap times.
+    Returns (lower_bound, upper_bound) at the requested CI level.
+
+    With n=1,092 pairs (42 years × 13 regions × 2 seasons), typical 95% CI
+    width is ±0.05–0.08 on the aggregate HSS. Per-region CIs are wider
+    (n≈42 per region/season, CI width ≈ ±0.13–0.16).
+    """
+    rng = np.random.default_rng(seed)
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+    n = len(y_true)
+    hss_samples = []
+    for _ in range(n_bootstrap):
+        idx = rng.integers(0, n, size=n)
+        yt, yp = y_true[idx], y_pred[idx]
+        if len(np.unique(yt)) < 2:
+            continue
+        h, _ = compute_hss(yt, yp)
+        hss_samples.append(h)
+    alpha = (1 - ci) / 2
+    return float(np.quantile(hss_samples, alpha)), float(np.quantile(hss_samples, 1 - alpha))
+
+
 def render_validation_tab():
     df = load_results()
+
+    # Guard: validation_results.csv missing or unreadable
+    if df.empty:
+        st.warning(
+            "⚠️ **Validation data unavailable.** "
+            "The file `data/validation_results.csv` could not be loaded. "
+            "Run `scripts/build_region_models.py` to regenerate it, "
+            "then restart the app.",
+            icon="⚠️",
+        )
+        return
 
     st.markdown("""
     <div style="margin-bottom:24px">
@@ -160,7 +149,11 @@ def render_validation_tab():
 
     col1, col2, col3, col4 = st.columns(4)
 
-    def metric_card(col, label, value, subtext, color="#e0e8f0"):
+    def metric_card(col, label, value, subtext, color="#e0e8f0", ci_text=None):
+        ci_html = (
+            f'<div style="font-size:0.7rem; color:#4a6080; margin-top:6px; '
+            f'font-style:italic">{ci_text}</div>'
+        ) if ci_text else ""
         col.markdown(f"""
         <div style="background:#0f1623; border:1px solid #1e2a3d;
                     border-radius:14px; padding:20px 18px">
@@ -174,12 +167,15 @@ def render_validation_tab():
             <div style="font-size:0.8rem; color:#7a90a8; margin-top:4px">
                 {subtext}
             </div>
+            {ci_html}
         </div>
         """, unsafe_allow_html=True)
 
     hss_color = "#27ae60" if hss_all > 0.3 else "#d4a017" if hss_all > 0.1 else "#e74c3c"
-    metric_card(col1, "Heidke Skill Score", f"{hss_all:.3f}",
-                "WMO standard · >0.3 = skillful", hss_color)
+    ci_lo, ci_hi = bootstrap_hss_ci(df['actual'].values, df['predicted'].values)
+    metric_card(col1, "Heidke Skill Score (LOOCV)", f"{hss_all:.3f}",
+                "WMO standard · >0.3 = skillful · see caveat below", hss_color,
+                ci_text=f"95% bootstrap CI: [{ci_lo:.3f}, {ci_hi:.3f}] · n=1,092")
     metric_card(col2, "Overall Accuracy",   f"{accuracy:.1%}",
                 "42 years · 13 regions · 1,092 forecasts")
     metric_card(col3, "Drought Detection",  f"{drought_hit:.1%}",
@@ -198,11 +194,22 @@ def render_validation_tab():
         <b style="color:#c8d8e8">What is HSS?</b> The Heidke Skill Score measures how much
         better the model is than random chance. A score of 0 means no skill — equivalent
         to guessing. A score of 1 is perfect. WMO considers anything above 0.3 as skillful.
-        ICPAC's published HSS for East Africa seasonal forecasts typically ranges from 0.2–0.35.
-        Azmera's Kiremt (main rains) HSS of <b style="color:#c8d8e8">{hss_kiremt:.3f}</b> meets
-        the WMO skillful threshold. Belg (short rains) HSS of
-        <b style="color:#c8d8e8">{hss_belg:.3f}</b> is lower — a known challenge due to weaker
-        teleconnection signals during March–May across all statistical forecast systems.
+        <br><br>
+        <b style="color:#d4a017">⚠️ Important: LOOCV vs prospective skill.</b>
+        The scores shown above
+        (Kiremt <b style="color:#c8d8e8">{hss_kiremt:.3f}</b> ·
+        Belg <b style="color:#c8d8e8">{hss_belg:.3f}</b>)
+        are from leave-one-year-out cross-validation (LOOCV). Because each held-out year
+        is trained on <i>all other 41 years including future years</i>, LOOCV tends to
+        overstate operational skill. Rolling-origin validation — training strictly on
+        1981–T and forecasting T+1, advancing T from 1994 to 2021
+        (27 test years × 13 regions = 351 pairs) — gives
+        <b style="color:#c8d8e8">Kiremt HSS = +0.063</b> (Phase D) and
+        <b style="color:#c8d8e8">Belg HSS = +0.071</b> (Phase F: region-specific AMM).
+        A gap between LOOCV and rolling-origin is expected for small climate datasets.
+        Rolling-origin is the <i>operational</i> skill metric — it is the primary basis
+        for the per-region release tier (Full / Experimental / Suppressed) shown below.
+        Both metrics are reported for full transparency.
     </div>
     """, unsafe_allow_html=True)
 
@@ -357,7 +364,6 @@ def render_validation_tab():
         statistical seasonal forecast systems globally, including ICPAC and ECMWF.
         The 2015 El Niño produced highly uneven impacts across regions, reducing region-level
         detection even though the El Niño signal was the strongest on record.
-        See the industry comparison below for context.
     </div>
     """, unsafe_allow_html=True)
 
@@ -404,80 +410,17 @@ def render_validation_tab():
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Industry comparison table ─────────────────────────────────
-    st.markdown('<p style="font-size:0.72rem; text-transform:uppercase; letter-spacing:2px; color:#4a6080; font-weight:600; margin:28px 0 12px 0">Industry Comparison — Azmera vs ICPAC vs ECMWF SEAS5</p>', unsafe_allow_html=True)
-
-    st.markdown("""
-    <div style="background:#0a0e18; border-left:3px solid #4a6080;
-                border-radius:0 10px 10px 0; padding:12px 16px; margin-bottom:16px;
-                color:#8a9ab0; font-size:0.82rem; line-height:1.7">
-        Approximate detection rates for key Ethiopian drought years across operational forecast systems.
-        Azmera figures are from honest LOOCV using Logistic Regression (C=0.5).
-        ICPAC figures from published verification reports (Diro et al. 2011, ICPAC COF verification 2002–2016).
-        ECMWF SEAS5 figures from Shukla et al. 2016 and WMO Lead Centre verification archives.
-        All figures are approximate — exact numbers vary by region, season, and verification methodology.
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div style="display:grid; grid-template-columns:60px 1fr 90px 90px 90px;
-                gap:8px; padding:8px 16px; margin-bottom:4px">
-        <span style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:#4a6080">Year</span>
-        <span style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:#4a6080">Driver</span>
-        <span style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:#4a6080; text-align:center">Azmera</span>
-        <span style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:#4a6080; text-align:center">ICPAC</span>
-        <span style="font-size:0.7rem; text-transform:uppercase; letter-spacing:1px; color:#4a6080; text-align:center">ECMWF</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    for row in INDUSTRY_COMPARISON:
-        type_color = "#e74c3c" if "Neutral" in row["type"] else "#27ae60" if "El Niño" in row["type"] else "#d4a017"
-
-        def rate_color(val):
-            try:
-                num = int(val.replace('%','').replace('~','').replace('<','').split('–')[0])
-                return "#27ae60" if num >= 50 else "#d4a017" if num >= 30 else "#e74c3c"
-            except:
-                return "#7a90a8"
-
-        st.markdown(f"""
-        <div style="display:grid; grid-template-columns:60px 1fr 90px 90px 90px;
-                    gap:8px; background:#0f1623; border:1px solid #1e2a3d;
-                    border-left:3px solid {type_color};
-                    border-radius:0 10px 10px 0; padding:12px 16px; margin-bottom:6px;
-                    align-items:center">
-            <span style="color:#c8d8e8; font-weight:600; font-size:0.9rem">{row['year']}</span>
-            <div>
-                <div style="color:#c8d8e8; font-size:0.82rem">{row['driver']}</div>
-                <div style="color:#4a6080; font-size:0.75rem; margin-top:2px">{row['note']}</div>
-            </div>
-            <span style="color:{rate_color(row['azmera'])}; font-weight:600;
-                         font-size:0.9rem; text-align:center; display:block">{row['azmera']}</span>
-            <span style="color:{rate_color(row['icpac'])}; font-weight:600;
-                         font-size:0.9rem; text-align:center; display:block">{row['icpac']}</span>
-            <span style="color:{rate_color(row['ecmwf'])}; font-weight:600;
-                         font-size:0.9rem; text-align:center; display:block">{row['ecmwf']}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div style="color:#3a4a5a; font-size:0.75rem; margin-top:8px; line-height:1.6">
-        🔴 Red border = neutral-year drought (no ocean precursor — missed by all systems) ·
-        🟢 Green border = ENSO-driven (detectable from ocean signals)
-    </div>
-    """, unsafe_allow_html=True)
-
     # ── Methodology note ──────────────────────────────────────────
     st.markdown("""
     <div style="background:#0a0e18; border-left:3px solid #4a6080;
                 border-radius:0 10px 10px 0; padding:16px 20px; margin-top:24px;
                 color:#8a9ab0; font-size:0.85rem; line-height:1.8">
         <b style="color:#c8d8e8">Methodology</b><br>
-        Validation uses leave-one-out cross-validation (LOOCV) across 42 years (1981–2022),
+        Primary validation uses leave-one-out cross-validation (LOOCV) across 42 years (1981–2022),
         13 Ethiopian regions, and 2 seasons — 1,092 total forecast-verification pairs.
         Model: <b style="color:#c8d8e8">Logistic Regression (L2 regularised, C=0.5, balanced class weights)</b> —
         selected after LOOCV comparison against XGBoost, Random Forest, and an Analog method.
-        LR achieved the highest overall HSS (0.181) and Kiremt HSS (0.316), consistent with
+        LR achieved the highest overall LOOCV HSS, consistent with
         climate forecasting literature recommending simpler regularised models for small datasets
         (Wilks 2006, Weigel et al. 2008).
         Features: ENSO, IOD, PDO and Atlantic SST at 1–3 month lags.
@@ -486,6 +429,23 @@ def render_validation_tab():
         statistical seasonal forecast systems due to weak large-scale climate forcing.
         OND and Bega seasons are not included — validation showed insufficient skill
         (HSS &lt; 0) for those seasons and are served as satellite monitoring only.
+        <br><br>
+        <b style="color:#d4a017">⚠️ Rolling-origin validation (prospective skill):</b>
+        In addition to LOOCV, rolling-origin validation was conducted: training on 1981–T and
+        forecasting year T+1, advancing T from 1994 to 2021 (27 seasons × 13 regions = 351 pairs).
+        Rolling-origin results: <b style="color:#c8d8e8">Kiremt HSS = +0.063</b> (Phase D) and
+        <b style="color:#c8d8e8">Belg HSS = +0.071</b> (Phase F: region-specific AMM Jan index).
+        Phase F improved Belg rolling-origin from +0.015 (Phase D) to +0.071 by adding the
+        Atlantic Meridional Mode January index for 7 of 13 Belg regions where it demonstrably
+        raised prospective skill. Rolling-origin is the operationally relevant measure of
+        forecast skill on unseen seasons; LOOCV provides an optimistic upper bound. Both reported.
+        <br><br>
+        <b style="color:#2ecc71">✅ Train/inference consistency (resolved Phase C):</b>
+        <code>spi_lag3</code> (previous-season SPI) has been removed from all per-region models.
+        Kiremt models use <code>belg_antecedent_anom_z</code> — a CHIRPS Belg z-score computed
+        consistently at training and inference time from the same CHIRPS baseline (Phase D).
+        Belg models use <code>amm_sst_jan</code> (January AMM SST) for 7 BELG_AMM_INCLUDE regions
+        and lean SST features only for the remaining 6 regions (Phase F).
     </div>
     """, unsafe_allow_html=True)
 
@@ -547,17 +507,24 @@ def render_validation_tab():
                 "status": "Under development. Requires gridded spatial data and extended training records to improve skill.",
             },
             {
-                "title": "Belg season skill is low",
+                "title": "Belg season skill is region-variable and generally low",
                 "severity": "significant",
                 "detail": (
-                    "The Belg (March–May) short rains have an HSS of 0.045 under LOOCV — well below "
-                    "the WMO skillful threshold of 0.3. Belg rainfall is driven by Atlantic SST and "
-                    "ITCZ position, which have weaker and less consistent teleconnections to the large-scale "
-                    "ocean indices used as features than the Kiremt season. This is a known challenge across "
-                    "all statistical Belg forecast systems. Belg forecasts are displayed but users should "
-                    "treat them with extra caution."
+                    "The Belg (March–May) short rains remain challenging to forecast. Rolling-origin "
+                    "validation (Phase F, 27 test years × 13 regions) gives an aggregate HSS of +0.071 — "
+                    "positive but well below the WMO skillful threshold of 0.3. Per-region skill varies "
+                    "substantially: Amhara (+0.199) and South West (+0.160) demonstrate meaningful skill; "
+                    "Oromia (−0.084), SNNPR (−0.101), and Sidama (−0.025) show negative rolling-origin HSS "
+                    "and are suppressed (no forecast issued). The Atlantic Meridional Mode Jan index "
+                    "(amm_sst_jan, Phase F) improved 7-region Belg rolling-origin from +0.015 to +0.071. "
+                    "Belg rainfall is driven by Atlantic SST and ITCZ position — weaker teleconnections "
+                    "than Kiremt. This is a known challenge across all statistical Belg forecast systems."
                 ),
-                "status": "Active research area. Improving Belg skill may require additional predictors such as Atlantic meridional mode indices.",
+                "status": (
+                    "Improved from +0.015 to +0.071 rolling-origin via Phase F AMM feature (region-specific). "
+                    "3 Belg regions suppressed. Further improvement may require ITCZ position indices or "
+                    "ensemble methods. Phase G evaluation planned."
+                ),
             },
             {
                 "title": "Model uses static lagged indices, not real-time updates",
@@ -639,3 +606,117 @@ def render_validation_tab():
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+    # ── Release matrix ────────────────────────────────────────────
+    st.write("")
+    st.markdown(
+        '<p style="font-size:0.72rem; text-transform:uppercase; letter-spacing:2px; '
+        'color:#4a6080; font-weight:600; margin:24px 0 12px 0">'
+        'Release Matrix — Per-Region Forecast Status</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("""
+    <div style="background:#0a0e18; border-left:3px solid #4a6080;
+                border-radius:0 10px 10px 0; padding:12px 16px; margin-bottom:16px;
+                color:#8a9ab0; font-size:0.82rem; line-height:1.7">
+        <b style="color:#c8d8e8">Basis:</b> rolling-origin validation (train 1981–T,
+        forecast T+1, T: 1994–2021 · 27 test years × 13 regions = 351 pairs per season).
+        Kiremt = Phase D features · Belg = Phase F features (region-specific AMM Jan).
+        Thresholds: <b style="color:#27ae60">Full</b> = rolling-origin HSS ≥ 0.10 ·
+        <b style="color:#d4a017">Experimental</b> = HSS in (0.0, 0.10) ·
+        <b style="color:#e74c3c">Suppressed</b> = HSS ≤ 0.0.
+        Suppressed regions show "No Validated Forecast" instead of a verdict card.
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Release matrix data: (region_display, kiremt_ro_hss, belg_ro_hss)
+    RELEASE_MATRIX = [
+        ("Addis Ababa",       -0.049,  +0.111),
+        ("Afar",              +0.071,  +0.046),
+        ("Amhara",            +0.044,  +0.199),
+        ("Benishangul-Gumz",  +0.471,  +0.056),
+        ("Dire Dawa",         +0.024,  +0.096),
+        ("Gambela",           +0.012,  +0.147),
+        ("Harari",            +0.102,  +0.096),
+        ("Oromia",            -0.111,  -0.084),
+        ("Sidama",            -0.130,  -0.025),
+        ("SNNPR",             +0.077,  -0.101),
+        ("Somali",            +0.206,  +0.100),
+        ("South West",        +0.025,  +0.160),
+        ("Tigray",            +0.106,  +0.032),
+    ]
+
+    def _tier(hss):
+        if hss >= 0.10:  return ("✅ Full",         "#27ae60")
+        if hss > 0.00:   return ("⚠️ Experimental", "#d4a017")
+        return                   ("❌ Suppressed",   "#e74c3c")
+
+    # Header
+    st.markdown("""
+    <div style="display:grid; grid-template-columns:1.8fr 1fr 1.2fr 1fr 1.2fr;
+                gap:4px; padding:8px 12px; font-size:0.7rem; font-weight:600;
+                text-transform:uppercase; letter-spacing:1px; color:#4a6080;
+                background:#0a0e18; border-radius:8px 8px 0 0; margin-top:4px">
+        <span>Region</span>
+        <span style="text-align:right">Kiremt RO-HSS</span>
+        <span style="text-align:center">Kiremt Tier</span>
+        <span style="text-align:right">Belg RO-HSS</span>
+        <span style="text-align:center">Belg Tier</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for region_name, k_hss, b_hss in RELEASE_MATRIX:
+        k_label, k_color = _tier(k_hss)
+        b_label, b_color = _tier(b_hss)
+        st.markdown(f"""
+        <div style="display:grid; grid-template-columns:1.8fr 1fr 1.2fr 1fr 1.2fr;
+                    gap:4px; padding:8px 12px; font-size:0.82rem; color:#c8d8e8;
+                    background:#0f1623; border-bottom:1px solid #1e2a3d;
+                    align-items:center">
+            <span style="font-weight:600">{region_name}</span>
+            <span style="text-align:right; font-family:monospace;
+                         color:{k_color}">{k_hss:+.3f}</span>
+            <span style="text-align:center; font-size:0.78rem;
+                         color:{k_color}">{k_label}</span>
+            <span style="text-align:right; font-family:monospace;
+                         color:{b_color}">{b_hss:+.3f}</span>
+            <span style="text-align:center; font-size:0.78rem;
+                         color:{b_color}">{b_label}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Aggregate row
+    k_agg = +0.063
+    b_agg = +0.071
+    k_agg_color = "#d4a017"   # experimental range
+    b_agg_color = "#d4a017"
+    st.markdown(f"""
+    <div style="display:grid; grid-template-columns:1.8fr 1fr 1.2fr 1fr 1.2fr;
+                gap:4px; padding:8px 12px; font-size:0.82rem;
+                background:#0a0e18; border-radius:0 0 8px 8px;
+                align-items:center; border-top:2px solid #1e2a3d">
+        <span style="color:#7a90a8; font-weight:600; font-size:0.78rem">
+            AGGREGATE (351 pairs)
+        </span>
+        <span style="text-align:right; font-family:monospace;
+                     font-weight:700; color:{k_agg_color}">{k_agg:+.3f}</span>
+        <span style="text-align:center; font-size:0.72rem;
+                     color:{k_agg_color}">Phase D</span>
+        <span style="text-align:right; font-family:monospace;
+                     font-weight:700; color:{b_agg_color}">{b_agg:+.3f}</span>
+        <span style="text-align:center; font-size:0.72rem;
+                     color:{b_agg_color}">Phase F</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="margin-top:12px; color:#4a6080; font-size:0.78rem; line-height:1.6">
+        <b style="color:#c8d8e8">Why this matters:</b>
+        Oromia and Addis Ababa Kiremt show positive LOOCV scores (+0.227 and +0.039) but
+        negative rolling-origin HSS (−0.111 and −0.049) — a classic sign of LOOCV
+        overfitting when future years appear in training. Rolling-origin is the honest test.
+        Gambela Kiremt shows the opposite: LOOCV −0.013 but rolling-origin +0.012 —
+        the leave-one-out test understates its prospective skill.
+        Harari uses the Dire Dawa model (pixel-identical CHIRPS extraction confirmed).
+    </div>
+    """, unsafe_allow_html=True)

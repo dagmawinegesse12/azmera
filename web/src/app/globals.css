@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #05080f;
+    --background-surface: #080e1a;
+    --background-elevated: #0f1623;
+    --background-border: #1e2a3d;
+    --text-primary: #e0e8f0;
+    --text-secondary: #c8d8e8;
+    --text-muted: #7a90a8;
+    --text-faint: #4a6080;
+    --accent-green: #27ae60;
+  }
+
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+    background-color: var(--background);
+    color: var(--text-primary);
+    font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--background-surface);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--background-border);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-faint);
+  }
+}
+
+@layer components {
+  /* Card base */
+  .card {
+    @apply bg-background-elevated rounded-xl border border-background-border;
+  }
+
+  /* Skeleton loading pulse */
+  .skeleton {
+    @apply bg-background-elevated animate-pulse rounded;
+  }
+
+  /* Forecast color utilities */
+  .text-forecast {
+    color: var(--text-primary);
+  }
+
+  /* Hide scrollbar (used in horizontal strip components like OceanSignalsStrip) */
+  .scrollbar-none {
+    scrollbar-width: none;        /* Firefox */
+    -ms-overflow-style: none;     /* IE/Edge */
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;                /* Chrome/Safari/WebKit */
+  }
+}

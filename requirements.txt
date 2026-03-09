@@ -1,8 +1,10 @@
+# Azmera — Core runtime dependencies
+# Pinned to minimum tested versions. Rebuild requirements-dev.txt separately.
+
 streamlit>=1.32.0
 pandas>=2.0.0
 numpy>=1.24.0
 plotly>=5.18.0
-xgboost>=2.0.0
 scikit-learn>=1.3.0
 requests>=2.31.0
 pyarrow>=14.0.0
@@ -10,6 +12,13 @@ openai>=1.12.0
 python-dotenv>=1.0.0
 folium
 streamlit-folium
-shapely
-earthengine-api
 rasterio
+
+# Optional / feature-gated dependencies (app degrades gracefully without these)
+# earthengine-api  ← GEE satellite panel; requires GOOGLE_APPLICATION_CREDENTIALS
+#                    Uncomment only when deploying with GEE service account.
+#                    Currently gated by try/except in app.py.
+
+# Removed (not imported anywhere in src/ or app/):
+# xgboost>=2.0.0   ← LR was selected over XGBoost in LOOCV; XGB no longer used
+# shapely           ← bbox computation uses raw GeoJSON coordinate iteration (map_component.py)

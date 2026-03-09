@@ -1,0 +1,31 @@
+# ── Azmera API — Render deployment configuration ──────────────────
+# Fallback option if Railway is not used.
+# WARNING: Render free tier sleeps after 15 min of inactivity.
+#          First request after sleep takes 30–60 s to respond.
+#          Upgrade to Render Starter ($7/mo) to disable sleep.
+#
+# Deploy steps:
+#   1. Connect this repo on https://render.com
+#   2. Set environment variables in Render dashboard:
+#        ALLOWED_ORIGINS=https://<your-app>.vercel.app
+#        OPENAI_API_KEY=<your-key>
+#        CDSAPI_KEY=<your-key>     (optional)
+#   3. render.yaml is picked up automatically.
+
+services:
+  - type: web
+    name: azmera-api
+    env: python
+    pythonVersion: "3.11"
+    buildCommand: "pip install -r api/requirements.txt"
+    startCommand: "uvicorn api.server:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /docs
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: ALLOWED_ORIGINS
+        sync: false      # set manually in Render dashboard
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: CDSAPI_KEY
+        sync: false

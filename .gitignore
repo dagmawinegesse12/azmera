@@ -1,33 +1,76 @@
-# Environment
+# ══════════════════════════════════════════════════════════════════
+# Azmera — root .gitignore
+# ══════════════════════════════════════════════════════════════════
+
+# ── Secrets / environment ─────────────────────────────────────────
 .env
 *.env
+.env.local
+.env.*.local
+streamlit_secrets.txt
 
-# Python
+# ── Python runtime artifacts ──────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .Python
 *.egg-info/
+*.egg
+dist/
+build/
+.eggs/
 
-# Large data files — exclude NASA POWER rainfall (huge)
+# ── Test / coverage ───────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Model artifacts — granular rules ──────────────────────────────
+# Default: ignore all pkl files (prevents accidental training-artifact commits)
+*.pkl
+# Un-ignore the specific production model directories needed at runtime.
+# Note: these files were originally force-added (git add -f) to bypass
+# the *.pkl rule; the negation patterns below keep them tracked going forward.
+!models/zones/*.pkl
+!models/regions/*.pkl
+!models/seasonal/*.pkl
+!models/feature_cols.pkl
+!models/region_encoder.pkl
+# Backup dirs — training artifacts only, never commit
+models/regions_backup_*/
+
+# ── Large / generated data files ─────────────────────────────────
+# NASA POWER downloads (hundreds of MB per file)
 data/raw/nasa_power_*.csv
+# CHIRPS raster downloads
 data/raw/chirps_*.csv
+data/raw/chirps_*/
+# Intermediate processed data
+data/processed/
 
-# Keep the small index CSVs — explicitly allow them
-# data/raw/enso_index.csv  ← keep
-# data/raw/iod_index.csv   ← keep
-# data/raw/pdo_index.csv   ← keep
-# data/raw/atlantic_sst.csv ← keep
-
-# Processed data
-
-
-# Jupyter
+# ── Jupyter ───────────────────────────────────────────────────────
 .ipynb_checkpoints/
 notebooks/
 
-# Mac
-.DS_Store
+# ── Next.js frontend build artifacts ─────────────────────────────
+web/.next/
+web/out/
+web/node_modules/
+web/tsconfig.tsbuildinfo
+web/.vercel
 
-streamlit_secrets.txt
-*.pkl
+# ── Claude Code local config (machine-specific) ───────────────────
+.claude/
+
+# ── OS / editor clutter ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Logs ─────────────────────────────────────────────────────────
+*.log
+logs/

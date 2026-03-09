@@ -35,6 +35,15 @@ def cached_indices():
 def cached_all_forecasts(season_key):
     return get_all_forecasts(season_key, forecast)
 
+@st.cache_data(ttl=86400)  # daily — parquet is static until models are retrained
+def cached_seasonal_parquet(path):
+    """Cache the historical parquet read — avoid re-reading on every button press."""
+    try:
+        return pd.read_parquet(path)
+    except Exception as e:
+        print(f"[Azmera] WARNING: Could not load seasonal parquet at {path}: {e}")
+        return pd.DataFrame()
+
 # ── Page config ───────────────────────────────────────────────────
 st.set_page_config(
     page_title="Azmera — Ethiopia Rainfall Forecast",
@@ -255,6 +264,11 @@ with st.sidebar:
     _region_key = region.lower().replace(" ", "_")
     _zones = get_zones_for_region(_region_key)
     _zone_options = ["All zones (region-level)"] + [z["zone_display"] for z in _zones]
+    if region in ("Sidama", "South West"):
+        st.caption(
+            "ℹ️ Sidama and South West share the SNNPR boundary on the risk map — "
+            "zone forecasts use Southern Nations boundaries."
+        )
     selected_zone = st.selectbox("🗺️ Zone", _zone_options, index=0)
     if selected_zone != "All zones (region-level)":
         zone_key = next((z["zone_key"] for z in _zones if z["zone_display"] == selected_zone), None)
@@ -289,7 +303,7 @@ with st.sidebar:
 
     with st.expander("ℹ️ About Azmera"):
         st.markdown("""
-        Azmera uses 44 years of climate data to forecast
+        Azmera uses 42 years of climate data to forecast
         whether the upcoming planting season will be **dry,
         normal, or wet** — giving farmers time to prepare.
 
@@ -300,9 +314,11 @@ with st.sidebar:
         - WFP live market prices
 
         **Validated against**
-        - 2002–2005 drought (99% accuracy)
-        - 2009 drought (82% accuracy)
-        - 2015 El Niño drought (correctly flagged all 4 affected regions)
+        - Kiremt LOOCV HSS 0.316 · rolling-origin HSS +0.063 (Phase D)
+        - 2002 El Niño drought → 80% LOOCV detection rate
+        - 1984 famine year → 56% LOOCV detection rate
+        - 42 years · 1,092 verified forecasts (LOOCV)
+        - ⚠️ See Validation tab for full skill context
         """)
 
 # ── Main ──────────────────────────────────────────────────────────
@@ -459,7 +475,7 @@ with tab1:
                     unsafe_allow_html=True)
         try:
             DATA_PATH   = os.path.join(os.path.dirname(__file__), "../data/processed/seasonal_4seasons.parquet")
-            seasonal_4s = pd.read_parquet(DATA_PATH)
+            seasonal_4s = cached_seasonal_parquet(DATA_PATH)
             region_hist = seasonal_4s[
                 (seasonal_4s["region"] == region_key) &
                 (seasonal_4s["season"] == season_key)
@@ -510,41 +526,151 @@ with tab1:
     elif run:
         region_key = region.lower().replace(" ", "_")
 
-        if zone_key:
-            with st.spinner(f"Analyzing climate signals for {selected_zone}, {region}..."):
-                result = forecast_zone(zone_key, selected_zone, region_key, season_key)
-        else:
-            with st.spinner(f"Analyzing climate signals for {region}..."):
-                result = forecast(region_key, season_key)
+        try:
+            if zone_key:
+                with st.spinner(f"Analyzing climate signals for {selected_zone}, {region}..."):
+                    result = forecast_zone(zone_key, selected_zone, region_key, season_key)
+            else:
+                with st.spinner(f"Analyzing climate signals for {region}..."):
+                    result = forecast(region_key, season_key)
+        except ValueError as e:
+            # Raised for unsupported seasons — surface cleanly
+            st.error(f"⚠️ {e}")
+            st.stop()
+        except Exception as e:
+            import traceback
+            print(f"[Azmera] Forecast error for {region}/{season_key}: {traceback.format_exc()}")
+            st.error(
+                f"🔴 Forecast generation failed for **{region}** ({season_key}).\n\n"
+                f"Possible causes: missing model file, unavailable climate index data, "
+                f"or network issue.\n\nTechnical detail: `{type(e).__name__}: {e}`"
+            )
+            st.stop()
 
-        pred    = result["prediction"]
-        conf    = result["confidence"]
-        p_below = result["prob_below"]
-        p_near  = result["prob_near"]
-        p_above = result["prob_above"]
+        pred         = result["prediction"]
+        conf         = result["confidence"]
+        p_below      = result["prob_below"]
+        p_near       = result["prob_near"]
+        p_above      = result["prob_above"]
+        is_fallback  = result.get("source") == "region_fallback"
+        no_skill     = result.get("no_skill", False)
+        release_tier = result.get("release_tier", "experimental")
+        ro_hss_val   = result.get("ro_hss")
 
         location_label = f"{selected_zone}, {region}" if zone_key else region
 
-        if pred == "Below Normal":
-            verdict_class = "verdict-red"
-            verdict_icon  = "⚠️"
-            verdict_title = "Drought Risk — Prepare Now"
-            verdict_color = "#e74c3c"
-            verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be below normal."
-        elif pred == "Above Normal":
-            verdict_class = "verdict-green"
-            verdict_icon  = "✅"
-            verdict_title = "Good Rains Likely"
-            verdict_color = "#27ae60"
-            verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be above normal."
-        else:
-            verdict_class = "verdict-yellow"
-            verdict_icon  = "🌤️"
-            verdict_title = "Near Normal Season Expected"
-            verdict_color = "#d4a017"
-            verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be close to average."
+        # ── Tier-based skill banner ───────────────────────────────
+        # Shown BEFORE the verdict card. Suppressed tier is handled by the
+        # no_skill panel below; experimental and full show different banners.
+        if release_tier == "experimental":
+            ro_str = f"Rolling-origin HSS {ro_hss_val:+.3f}" if ro_hss_val is not None else ""
+            season_label = "Belg (Mar–May)" if season_key == "Belg" else "Kiremt (Jun–Sep)"
+            st.markdown(f"""
+            <div style="background:#0f1623; border:1px solid #d4a017;
+                        border-left:4px solid #d4a017; border-radius:0 14px 14px 0;
+                        padding:14px 18px; margin-bottom:16px">
+                <div style="font-size:0.72rem; text-transform:uppercase;
+                            letter-spacing:2px; color:#d4a017; margin-bottom:6px">
+                    ⚠️ EXPERIMENTAL — MARGINAL FORECAST SKILL
+                </div>
+                <div style="color:#c8d8e8; font-size:0.88rem; line-height:1.7">
+                    <b>{region} · {season_label}:</b> prospective skill score
+                    <b>{ro_str}</b> — positive but below the validated threshold
+                    (rolling-origin HSS ≥ 0.10). The ocean signal is detectable but weak.
+                    <b style="color:#d4a017">Use alongside local knowledge and
+                    official ICPAC / NMA advisories. Do not treat as a reliable
+                    operational forecast.</b>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        elif release_tier == "full" and season_key == "Belg":
+            ro_str = f"{ro_hss_val:+.3f}" if ro_hss_val is not None else ""
+            st.markdown(f"""
+            <div style="background:#071410; border:1px solid #1a5030;
+                        border-left:4px solid #27ae60; border-radius:0 14px 14px 0;
+                        padding:10px 18px; margin-bottom:16px">
+                <div style="color:#7aaa88; font-size:0.82rem; line-height:1.6">
+                    ✅ <b style="color:#4caf84">Validated Belg forecast</b> —
+                    Rolling-origin HSS {ro_str} for {region} (prospective skill
+                    over 27 unseen test years, Phase F). Still treat probabilistically —
+                    no seasonal forecast is deterministic.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        # 'full' Kiremt: no banner (standard behavior)
+        # 'suppressed': handled by no_skill panel below
 
-        st.markdown(f"""
+        # ── No-skill (suppressed): show neutral panel, suppress verdict/advisory ──
+        if no_skill:
+            ro_str = f"rolling-origin HSS {ro_hss_val:+.3f}" if ro_hss_val is not None \
+                     else "no prospective skill demonstrated"
+            st.markdown(f"""
+            <div style="background:#0d1520; border:1px solid #4a6080;
+                        border-left:4px solid #6272a4; border-radius:0 14px 14px 0;
+                        padding:20px 22px; margin-bottom:20px">
+                <div style="font-size:0.72rem; text-transform:uppercase;
+                            letter-spacing:2px; color:#6272a4; margin-bottom:8px">
+                    📊 No Validated Forecast &nbsp;·&nbsp; {ro_str}
+                </div>
+                <div style="color:#c8d8e8; font-size:1.05rem; font-weight:600;
+                            margin-bottom:10px">
+                    {region} &nbsp;·&nbsp; {season_key} Season
+                </div>
+                <div style="color:#8a9ab8; font-size:0.88rem; line-height:1.8">
+                    Rolling-origin validation — training on 1981–T and forecasting T+1
+                    across 27 test years — showed negative prospective skill
+                    (<b>{ro_str}</b>) for this region and season. The model performed
+                    <i>worse than climatological chance</i> on unseen seasons.
+                    Issuing a probabilistic forecast would be scientifically misleading.
+                    <br><br>
+                    <b style="color:#c8d8e8">Best available estimate:</b>
+                    Treat each outcome as equally likely —
+                    <b>~33% probability</b> for Below Normal,
+                    Near Normal, and Above Normal rainfall.
+                    <br><br>
+                    <span style="color:#4a6080; font-size:0.8rem">
+                        ℹ️ Observed CHIRPS satellite data (below) is valid and
+                        shown for climate context.
+                    </span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        else:
+            # ── Fallback notice ───────────────────────────────────
+            if zone_key and is_fallback:
+                st.markdown(f"""
+            <div style="background:#0f1623; border:1px solid #4a6080;
+                        border-left:4px solid #4a6080; border-radius:0 10px 10px 0;
+                        padding:12px 16px; margin-bottom:16px; font-size:0.85rem; color:#7a90a8">
+                ⚠️ <b style="color:#c8d8e8">Zone-level model unavailable for {selected_zone}</b><br>
+                The zone model did not meet the minimum skill threshold (HSS &gt; 0) —
+                showing the <b style="color:#c8d8e8">{region} region forecast</b> instead.
+                Zone-level detail requires sufficient historical signal.
+            </div>
+            """, unsafe_allow_html=True)
+
+            # ── Verdict card ──────────────────────────────────────
+            if pred == "Below Normal":
+                verdict_class = "verdict-red"
+                verdict_icon  = "⚠️"
+                verdict_title = "Drought Risk — Prepare Now"
+                verdict_color = "#e74c3c"
+                verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be below normal."
+            elif pred == "Above Normal":
+                verdict_class = "verdict-green"
+                verdict_icon  = "✅"
+                verdict_title = "Good Rains Likely"
+                verdict_color = "#27ae60"
+                verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be above normal."
+            else:
+                verdict_class = "verdict-yellow"
+                verdict_icon  = "🌤️"
+                verdict_title = "Near Normal Season Expected"
+                verdict_color = "#d4a017"
+                verdict_msg   = f"Rainfall in {location_label} during {SEASON_MONTHS[season_key]} is likely to be close to average."
+
+            st.markdown(f"""
         <div class="verdict-card {verdict_class}">
             <div class="verdict-title" style="color:{verdict_color}">
                 {verdict_icon} {verdict_title}
@@ -553,19 +679,25 @@ with tab1:
         </div>
         """, unsafe_allow_html=True)
 
-        conf_pct   = int(conf * 100)
-        conf_color = "#27ae60" if conf > 0.6 else \
-                     "#d4a017" if conf > 0.45 else "#e74c3c"
+            if conf > 0.55:
+                signal_label = "🟢 Strong signal"
+                signal_color = "#27ae60"
+                signal_note  = "Ocean conditions clearly favour this outcome."
+            elif conf > 0.45:
+                signal_label = "🟡 Moderate signal"
+                signal_color = "#d4a017"
+                signal_note  = "Some uncertainty — multiple outcomes remain plausible."
+            else:
+                signal_label = "🔴 Weak signal"
+                signal_color = "#e74c3c"
+                signal_note  = "Climate conditions are mixed — all outcomes remain plausible."
 
-        st.markdown(f"""
+            st.markdown(f"""
         <div class="explainer">
-            <b style="color:#c8d8e8">Model confidence: {conf_pct}%</b>
-            {"— High confidence. Ocean signals are strong and consistent." if conf > 0.6 else
-             "— Moderate confidence. Some uncertainty in the forecast." if conf > 0.45 else
-             "— Lower confidence. Climate signals are mixed — prepare for variability."}
-            <div class="conf-bar-wrap" style="margin-top:10px">
-                <div class="conf-bar-fill"
-                     style="width:{conf_pct}%; background:{conf_color}"></div>
+            <b style="color:{signal_color}">{signal_label}</b> — {signal_note}
+            <div style="color:#4a6080; font-size:0.78rem; margin-top:8px">
+                ⚠️ Signal strength reflects relative model confidence, not a calibrated
+                probability estimate. See the Validation tab for skill context.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -616,19 +748,24 @@ with tab1:
         st.write("")
 
         # ── Probability + Historical chart ────────────────────────
-        col1, col2 = st.columns([1, 1])
+        # Skilled models: two columns (prob breakdown + history).
+        # No-skill models: historical chart only, full width (probabilities
+        # from a no-skill model carry no information above climatology).
+        if no_skill:
+            _hist_container = st.container()
+        else:
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.markdown('<p class="section-label">Probability Breakdown</p>',
+                            unsafe_allow_html=True)
 
-        with col1:
-            st.markdown('<p class="section-label">Probability Breakdown</p>',
-                        unsafe_allow_html=True)
-
-            for label, prob, color, icon in [
-                ("Drought (Below Normal)",    p_below, "#e74c3c", "⚠️"),
-                ("Normal Season",             p_near,  "#d4a017", "🌤️"),
-                ("Good Rains (Above Normal)", p_above, "#27ae60", "✅"),
-            ]:
-                pct = int(prob * 100)
-                st.markdown(f"""
+                for label, prob, color, icon in [
+                    ("Drought (Below Normal)",    p_below, "#e74c3c", "⚠️"),
+                    ("Normal Season",             p_near,  "#d4a017", "🌤️"),
+                    ("Good Rains (Above Normal)", p_above, "#27ae60", "✅"),
+                ]:
+                    pct = int(prob * 100)
+                    st.markdown(f"""
                 <div style="margin-bottom:14px">
                     <div style="display:flex; justify-content:space-between;
                                 margin-bottom:5px">
@@ -646,12 +783,14 @@ with tab1:
                 </div>
                 """, unsafe_allow_html=True)
 
-        with col2:
+            _hist_container = col2
+
+        with _hist_container:
             st.markdown('<p class="section-label">Historical Rainfall for This Season</p>',
                         unsafe_allow_html=True)
             try:
                 DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/processed/seasonal_enriched.parquet")
-                seasonal_v3 = pd.read_parquet(DATA_PATH)
+                seasonal_v3 = cached_seasonal_parquet(DATA_PATH)
 
                 region_hist = seasonal_v3[
                     (seasonal_v3["region"] == region_key) &
@@ -695,26 +834,35 @@ with tab1:
             except Exception as e:
                 st.info("Historical chart unavailable")
 
-        # ── Farmer advisory ───────────────────────────────────────
-        st.markdown('<p class="section-label">What Should Farmers Do?</p>',
-                    unsafe_allow_html=True)
+        # ── Farmer advisory (skilled models only) ────────────────
+        # Suppressed for no-skill models: an advisory tied to a
+        # scientifically-invalid forecast creates false confidence.
+        if not no_skill:
+            st.markdown('<p class="section-label">What Should Farmers Do?</p>',
+                        unsafe_allow_html=True)
 
-        advisory_text = result["advisory_am"] if "አማርኛ" in language \
-                        else result["advisory_en"]
+            advisory_text = result["advisory_am"] if "አማርኛ" in language \
+                            else result["advisory_en"]
 
-        lines = [l.strip() for l in advisory_text.split("\n") if l.strip()]
+            lines = [l.strip() for l in advisory_text.split("\n") if l.strip()]
 
-        advisory_items = "".join([
-            f'<div style="margin-bottom:14px; color:#c8d8e8; font-size:0.97rem; line-height:1.6">{line}</div>'
-            for line in lines if line.strip()
-        ])
+            advisory_items = "".join([
+                f'<div style="margin-bottom:14px; color:#c8d8e8; font-size:0.97rem; line-height:1.6">{line}</div>'
+                for line in lines if line.strip()
+            ])
 
-        st.markdown(f"""
+            st.markdown(f"""
         <div class="advisory-card">
             <div class="advisory-title">
                 AI-Generated Advisory · {region} · {season_key} Season
             </div>
             {advisory_items}
+            <div style="margin-top:16px; padding-top:12px; border-top:1px solid #1e2a3d;
+                        color:#4a6080; font-size:0.75rem; line-height:1.5">
+                ⚠️ AI-generated — not reviewed by agronomists. Crop recommendations may not
+                reflect local varieties or market conditions. Consult local agricultural
+                extension officers before making planting decisions.
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -741,10 +889,15 @@ with tab1:
                     </div>
                     """, unsafe_allow_html=True)
 
-            st.markdown("""
+            is_regional = prices[0].get("is_regional", True) if prices else True
+            source_note = (
+                f"📡 Source: WFP VAM / HDX — {prices[0]['region']} market prices. 1 quintal = 100kg."
+                if is_regional else
+                "📡 Source: WFP VAM / HDX — <b style='color:#d4a017'>National proxy data</b> (no regional prices available for this area). 1 quintal = 100kg."
+            )
+            st.markdown(f"""
             <div style="color:#3a4a5a; font-size:0.75rem; margin-top:8px">
-                📡 Source: WFP VAM / HDX — Ethiopia market prices.
-                1 quintal = 100kg. Prices vary by market and region.
+                {source_note}
             </div>
             """, unsafe_allow_html=True)
         else:
@@ -800,9 +953,9 @@ with tab1:
             <div class="signal-pill" style="text-align:center; padding:24px">
                 <div style="font-size:1.8rem; margin-bottom:8px">📊</div>
                 <div style="color:#c8d8e8; font-weight:600;
-                            margin-bottom:6px">44 Years of Data</div>
+                            margin-bottom:6px">42 Years of Data</div>
                 <div style="color:#4a6080; font-size:0.85rem">
-                    Trained on 1981–2024 rainfall
+                    Trained on 1981–2022 rainfall
                     records across 13 regions
                 </div>
             </div>
@@ -835,17 +988,35 @@ with tab2:
 
     if "drill_region" not in st.session_state:
         st.session_state["drill_region"] = None
+    if "last_map_region" not in st.session_state:
+        st.session_state["last_map_region"] = None
 
-    # Always sync map drill-down to sidebar region
-    st.session_state["drill_region"] = region
-    drill_region = region
+    # Reset to Ethiopia overview when user switches region in sidebar
+    if region != st.session_state["last_map_region"]:
+        st.session_state["drill_region"] = None
+        st.session_state["last_map_region"] = region
+
+    # Drill into zone view only when user clicks Generate Forecast with a zone selected
+    if run and zone_key:
+        st.session_state["drill_region"] = region
+    drill_region = st.session_state["drill_region"]
+
+    if not run:
+        st.markdown("""
+        <div style="background:#0a0e18; border:1px solid #1e2a3d; border-radius:10px;
+                    padding:12px 18px; margin-bottom:12px; color:#4a6080;
+                    font-size:0.85rem; text-align:center">
+            🔮 Click <b style="color:#7a90a8">Generate Forecast</b> in the sidebar
+            to load forecasts on the map
+        </div>
+        """, unsafe_allow_html=True)
 
     with st.spinner("Loading forecasts..."):
-        all_forecasts = cached_all_forecasts(season_key)
+        all_forecasts = cached_all_forecasts(season_key) if run else {}
 
     clicked_region, clicked_zone = render_risk_map(
         all_forecasts,
-        selected_region=drill_region,
+        selected_region=st.session_state.get("drill_region"),
         selected_zone=selected_zone if zone_key else None,
         season_key=season_key,
         forecaster_fn=forecast_zone,

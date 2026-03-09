@@ -4,11 +4,14 @@ Clickable choropleth map with region → zone drill-down.
 """
 
 import json
+import logging
 import os
 import folium
 import pandas as pd
 from streamlit_folium import st_folium
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 # ── Paths ─────────────────────────────────────────────────────────
 BASE_DIR         = os.path.dirname(os.path.abspath(__file__))
@@ -52,6 +55,36 @@ RISK_COLORS = {
     "Near Normal":  "#f0c040",
     "Above Normal": "#4caf84",
     "unknown":      "#2a3a4a",
+}
+
+# ── Label placement (Option 1: manual points + offsets) ───────────
+REGION_LABELS = {
+    "Tigray":      (14.2, 37.5),
+    "Afar":        (11.5, 40.8),
+    "Amhara":      (11.2, 37.2),
+    "Oromia":      (7.0,  39.0),
+    "Somali":      (6.5,  45.5),
+    "Ben. Gumz":   (10.8, 34.8),
+    "SNNPR":       (6.2,  37.4),
+    "Gambela":     (8.2,  34.0),
+    "Harari":      (9.0,  42.6),
+    "Dire Dawa":   (9.8,  41.6),
+    "Addis Ababa": (8.9,  38.3),
+}
+
+# Move labels slightly: (dlat, dlon). Increasing lon moves label RIGHT.
+LABEL_OFFSETS = {
+    "Tigray":      (0.0, 0.0),
+    "Afar":        (0.0, 0.0),
+    "Amhara":      (0.0, 0.0),
+    "Oromia":      (0.0, 0.0),
+    "Somali":      (0.0, 0.0),
+    "Ben. Gumz":   (0.0, 0.0),
+    "SNNPR":       (0.0, 0.0),
+    "Gambela":     (0.0, 0.0),
+    "Harari":      (0.0, 0.0),
+    "Dire Dawa":   (0.0, 0.0),
+    "Addis Ababa": (0.0, 0.0),
 }
 
 # ── Load GeoJSONs ─────────────────────────────────────────────────
@@ -114,11 +147,16 @@ def get_zone_forecasts(region_geojson_name, season_key):
     results = {}
     for _, zone in region_zones.iterrows():
         try:
-            result = forecast_zone(zone["zone_key"], zone["zone_display"],
-                                   zone["region_key"], season_key, fast=True)
+            result = forecast_zone(
+                zone["zone_key"],
+                zone["zone_display"],
+                zone["region_key"],
+                season_key,
+                fast=True
+            )
             results[zone["zone_display"]] = result
         except Exception as e:
-            print(f"Zone error {zone['zone_key']}: {e}")
+            logger.warning("Zone forecast failed for zone_key='%s': %s", zone["zone_key"], e)
     return results
 
 # ── Legend ────────────────────────────────────────────────────────
@@ -189,26 +227,32 @@ def render_region_map(forecast_results, selected_region=None):
         ),
     ).add_to(m)
 
-    # Dashed outline for selected region
-    if selected_region:
-        geo_name = AZMERA_TO_GEOJSON_REGION.get(selected_region)
-        if geo_name:
-            for feature in geojson["features"]:
-                if feature["properties"].get("NAME_1") == geo_name:
-                    folium.GeoJson(
-                        feature,
-                        style_function=lambda x: {
-                            "fillColor":   "transparent",
-                            "color":       "#ffffff",
-                            "weight":      3,
-                            "fillOpacity": 0,
-                            "dashArray":   "5,5",
-                        },
-                    ).add_to(m)
+    # ── Region labels (Option 1 + no rectangle background) ────────
+    for label, (lat, lon) in REGION_LABELS.items():
+        dlat, dlon = LABEL_OFFSETS.get(label, (0.0, 0.0))
+        folium.Marker(
+            location=[lat + dlat, lon + dlon],
+            icon=folium.DivIcon(
+                html=(
+                    "<div style='color:#ffffff;font-size:11px;font-weight:700;"
+                    "font-family:Arial,sans-serif;white-space:nowrap;pointer-events:none;"
+                    "text-shadow:0 1px 2px rgba(0,0,0,0.85);'>"
+                    + label + "</div>"
+                ),
+                icon_size=(150, 30),
+                # Anchor left edge so right-shifts feel consistent
+                icon_anchor=(0, 15),
+            )
+        ).add_to(m)
 
     _add_legend(m)
-    output = st_folium(m, width="100%", height=500, key="region_map",
-                       returned_objects=["last_object_clicked_tooltip"])
+    output = st_folium(
+        m,
+        width="100%",
+        height=500,
+        key="region_map_v2",
+        returned_objects=["last_object_clicked_tooltip"],
+    )
 
     clicked = None
     if output and output.get("last_object_clicked_tooltip"):
@@ -239,7 +283,6 @@ def render_zone_map(region_display, region_geojson_name, zone_forecasts, selecte
         return RISK_COLORS.get(prediction, RISK_COLORS["unknown"])
 
     bounds = get_region_bounds(region_geojson_name)
-    # Default center if bounds unavailable
     location = [9.0, 40.0]
     zoom = 6
     if bounds:
@@ -247,6 +290,7 @@ def render_zone_map(region_display, region_geojson_name, zone_forecasts, selecte
             (bounds[0][0] + bounds[1][0]) / 2,
             (bounds[0][1] + bounds[1][1]) / 2,
         ]
+
     m = folium.Map(
         location=location,
         zoom_start=zoom,
@@ -293,8 +337,15 @@ def render_zone_map(region_display, region_geojson_name, zone_forecasts, selecte
                 ).add_to(m)
 
     _add_legend(m)
-    output = st_folium(m, width="100%", height=500, key="zone_map",
-                       returned_objects=["last_object_clicked_tooltip"])
+    # Key includes region name to reset click state when switching between regions
+    _zone_map_key = f"zone_map_{region_display.lower().replace(' ', '_')}"
+    output = st_folium(
+        m,
+        width="100%",
+        height=500,
+        key=_zone_map_key,
+        returned_objects=["last_object_clicked_tooltip"],
+    )
 
     clicked = None
     if output and output.get("last_object_clicked_tooltip"):
@@ -304,18 +355,21 @@ def render_zone_map(region_display, region_geojson_name, zone_forecasts, selecte
     return clicked
 
 # ── Main render (called from app.py) ─────────────────────────────
-def render_risk_map(forecast_results, selected_region=None, selected_zone=None,
-                    season_key="Kiremt", forecaster_fn=None):
+def render_risk_map(
+    forecast_results,
+    selected_region=None,
+    selected_zone=None,
+    season_key="Kiremt",
+    forecaster_fn=None
+):
     """
     Region view by default.
     Drills into zone view when a region is selected in sidebar or clicked.
     """
-    # Resolve selected_region to a proper display name
     geo_region_name = AZMERA_TO_GEOJSON_REGION.get(selected_region, "") if selected_region else ""
     in_zone_view    = bool(geo_region_name)
 
     if in_zone_view:
-        # ── Zone view ─────────────────────────────────────────────
         col1, col2 = st.columns([1, 5])
         with col1:
             if st.button("← Ethiopia", key="back_btn"):
@@ -324,18 +378,54 @@ def render_risk_map(forecast_results, selected_region=None, selected_zone=None,
         with col2:
             st.markdown(f"**🗺️ {selected_region} — Zone Forecast**")
 
-        with st.spinner(f"Loading {selected_region} zone forecasts..."):
+        if season_key in ("OND", "Bega"):
+            zone_forecasts = {}
+        else:
+            placeholder = st.empty()
+            placeholder.markdown(f"""
+            <div style="height:500px;background:#0a0e18;border-radius:12px;border:1px solid #1e2a3d;
+                        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+                <div style="font-size:2.5rem">🌧️</div>
+                <div style="color:#c8d8e8;font-weight:600;font-size:1.1rem">
+                    Loading {selected_region} Zone Forecasts
+                </div>
+                <div style="color:#4a6080;font-size:0.82rem;text-align:center;max-width:320px;line-height:1.6">
+                    Fetching CHIRPS satellite rainfall data<br>
+                    Running {selected_region} zone models
+                </div>
+                <div style="width:200px;background:#1a2030;border-radius:8px;height:4px;overflow:hidden">
+                    <div style="height:100%;background:linear-gradient(90deg,#27ae60 0%,#4a6080 50%,#27ae60 100%);
+                                width:100%;background-size:200% 100%;animation:shimmer 1.5s infinite"
+                    ></div>
+                </div>
+                <div style="color:#3a4a5a;font-size:0.72rem">First load ~15s · Cached 1 hour</div>
+            </div>
+            <style>
+            @keyframes shimmer {{
+                0% {{ background-position: 200% 0; }}
+                100% {{ background-position: -200% 0; }}
+            }}
+            </style>
+            """, unsafe_allow_html=True)
             zone_forecasts = get_zone_forecasts(geo_region_name, season_key)
+            placeholder.empty()
 
-        clicked_zone = render_zone_map(selected_region, geo_region_name,
-                                       zone_forecasts, selected_zone=selected_zone)
+        clicked_zone = render_zone_map(
+            selected_region,
+            geo_region_name,
+            zone_forecasts,
+            selected_zone=selected_zone
+        )
 
         if clicked_zone:
             st.success(f"📍 **{clicked_zone}** — select it in the sidebar Zone dropdown for a full forecast.")
 
-        # Zone cards
         if zone_forecasts:
-            st.markdown('<p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:2px;color:#4a6080;font-weight:600;margin:16px 0 8px 0">All Zone Forecasts</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p style="font-size:0.72rem;text-transform:uppercase;letter-spacing:2px;'
+                'color:#4a6080;font-weight:600;margin:16px 0 8px 0">All Zone Forecasts</p>',
+                unsafe_allow_html=True,
+            )
             cols = st.columns(3)
             for i, (zone_name, result) in enumerate(sorted(zone_forecasts.items())):
                 pred  = result.get("prediction", "Unknown")
@@ -357,7 +447,6 @@ def render_risk_map(forecast_results, selected_region=None, selected_zone=None,
         return None, clicked_zone
 
     else:
-        # ── Region view ───────────────────────────────────────────
         st.caption("Click a region to see zone-level forecasts")
         clicked_region = render_region_map(forecast_results, selected_region)
 
@@ -367,9 +456,22 @@ def render_risk_map(forecast_results, selected_region=None, selected_zone=None,
 
         return clicked_region, None
 
-
 # ── get_all_forecasts ─────────────────────────────────────────────
 def get_all_forecasts(season_key: str, forecaster_fn) -> dict:
+    if season_key in ("OND", "Bega"):
+        REGION_DISPLAY = {
+            "tigray": "Tigray", "afar": "Afar", "amhara": "Amhara",
+            "oromia": "Oromia", "somali": "Somali",
+            "benishangul_gumz": "Benishangul Gumz", "snnpr": "SNNPR",
+            "gambela": "Gambela", "harari": "Harari",
+            "dire_dawa": "Dire Dawa", "addis_ababa": "Addis Ababa",
+        }
+        return {
+            display: {"prediction": "unknown", "source": "monitoring_only",
+                      "reason": f"{season_key} forecast skill insufficient"}
+            for display in REGION_DISPLAY.values()
+        }
+
     REGIONS = [
         "tigray", "afar", "amhara", "oromia", "somali",
         "benishangul_gumz", "snnpr", "gambela", "harari",
@@ -393,6 +495,6 @@ def get_all_forecasts(season_key: str, forecaster_fn) -> dict:
         try:
             result = forecaster_fn(key, season_key, fast=True)
             results[REGION_DISPLAY[key]] = result
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Forecast failed for region '%s' (season=%s): %s", key, season_key, e)
     return results

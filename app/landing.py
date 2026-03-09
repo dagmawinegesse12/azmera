@@ -97,8 +97,8 @@ st.markdown("""
 <div class="stat-item"><span class="stat-number">44</span><span class="stat-label">Years of Data</span></div>
 <div class="stat-item"><span class="stat-number">78</span><span class="stat-label">Zones Covered</span></div>
 <div class="stat-item"><span class="stat-number">156</span><span class="stat-label">Forecast Models</span></div>
-<div class="stat-item"><span class="stat-number">0.316</span><span class="stat-label">Kiremt HSS Score</span></div>
-<div class="stat-item"><span class="stat-number">4</span><span class="stat-label">Ocean Signals</span></div>
+<div class="stat-item"><span class="stat-number">+0.063</span><span class="stat-label">Kiremt Prospective HSS</span></div>
+<div class="stat-item"><span class="stat-number">5</span><span class="stat-label">Ocean Signals</span></div>
 </div>
 </section>
 """, unsafe_allow_html=True)
@@ -204,12 +204,12 @@ st.markdown("""
 <span class="section-tag" style="display:block; text-align:center; margin-bottom:48px">Validated Against History</span>
 <div class="validation-grid">
 <div class="val-card">
-<div class="val-headline">HSS 0.316</div>
-<div class="val-subline">Kiremt (main rains) — meets the WMO skillful forecast threshold</div>
-<p class="val-detail">Validated using leave-one-out cross-validation (LOOCV) across 42 years (1981–2022) and 13 regions — the standard WMO/ICPAC verification approach. For Kiremt, Ethiopia's main farming season, Azmera meets the WMO threshold for a skillful forecast. No year was ever used to both train and test the model.</p>
+<div class="val-headline">HSS +0.063</div>
+<div class="val-subline">Kiremt prospective skill (rolling-origin) · HSS 0.145 leave-one-out</div>
+<p class="val-detail">Validated using two complementary methods. <b>Rolling-origin</b> (train 1981–T, forecast T+1 for 27 test seasons) gives Kiremt HSS +0.063 — the conservative, prospective metric that uses only past data. <b>Leave-one-out cross-validation</b> (LOOCV, 42 years) gives Kiremt HSS 0.145. 4 Kiremt regions (Benishangul-Gumz, Somali, Harari, Tigray) meet the Full forecast threshold (rolling-origin HSS ≥ 0.10). Per-region release tiers are shown in the Validation tab.</p>
 <div class="drought-years" style="margin-top:20px">
-<span class="correct-badge">44.2% overall accuracy</span>
-<span class="correct-badge">58.4% drought detection</span>
+<span class="correct-badge">39.8% overall accuracy</span>
+<span class="correct-badge">53.0% drought detection</span>
 <span class="correct-badge">1,092 verified forecasts</span>
 <span class="correct-badge">42 years validated</span>
 </div>
@@ -246,8 +246,8 @@ st.markdown("""
 </div>
 <div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px;">
 <div style="font-family: 'Sora', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #4a9060; margin-bottom: 8px;">Input Features</div>
-<div style="font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; color: #c8e0d8; margin-bottom: 12px;">4 Ocean Climate Signals</div>
-<p style="font-family: 'Sora', sans-serif; font-size: 0.88rem; color: #7a9aaa; line-height: 1.8;">ENSO (Niño 3.4), Indian Ocean Dipole, Pacific Decadal Oscillation, and Atlantic SST — each with 3-month lag features and rolling averages. These ocean-atmosphere signals are the primary drivers of Ethiopian seasonal rainfall variability.</p>
+<div style="font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; color: #c8e0d8; margin-bottom: 12px;">5 Ocean Climate Signals</div>
+<p style="font-family: 'Sora', sans-serif; font-size: 0.88rem; color: #7a9aaa; line-height: 1.8;">ENSO (Niño 3.4), Indian Ocean Dipole, Pacific Decadal Oscillation, Atlantic SST — each with lag features — and Atlantic Meridional Mode (AMM Jan) for select Belg regions (Phase F). These ocean-atmosphere signals are the primary drivers of Ethiopian seasonal rainfall variability.</p>
 </div>
 <div style="background: #080e1a; border: 1px solid #0f1e2e; border-radius: 20px; padding: 36px;">
 <div style="font-family: 'Sora', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #4a9060; margin-bottom: 8px;">Training and Validation</div>

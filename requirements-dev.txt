@@ -1,0 +1,4 @@
+# Azmera — Development / test dependencies (not needed for deployment)
+-r requirements.txt
+pytest>=8.0.0
+pytest-cov
