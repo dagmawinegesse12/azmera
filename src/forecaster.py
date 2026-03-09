@@ -672,9 +672,24 @@ def forecast_zone(zone_key, zone_display, region_key, season, fast=False):
             model        = zone_data["model"]
             feature_cols = zone_data["feature_cols"]
 
-            # Use real spi_lag1 from previous season CHIRPS (not placeholder 0.0)
-            from chirps_anomaly import get_zone_spi_lag1
-            spi_lag1 = get_zone_spi_lag1(zone_key, season)
+            # Fallback A: attempt to load real spi_lag1 from CHIRPS.
+            # If rasterio / libexpat is unavailable (e.g. Railway nixpacks),
+            # the import raises and we fall back to 0.0 (climatological neutral).
+            # This is the same pattern used for belg_antecedent_anom_z and
+            # amm_sst_jan in forecast() above — zone model still runs on all
+            # 16 SST index features; only the antecedent SPI feature is degraded.
+            spi_lag1 = 0.0          # default: neutral antecedent
+            _spi_source = "neutral_fallback"
+            try:
+                from chirps_anomaly import get_zone_spi_lag1
+                spi_lag1 = get_zone_spi_lag1(zone_key, season)
+                _spi_source = "chirps"
+            except Exception as _spi_err:
+                print(
+                    f"[Azmera] WARNING: CHIRPS unavailable for zone={zone_key} "
+                    f"season={season} — spi_lag1 set to 0.0 (climatological neutral). "
+                    f"Zone model runs on SST indices only. Error: {_spi_err}"
+                )
             features = build_zone_features(indices, spi_lag1=spi_lag1)
             X = pd.DataFrame([features])[feature_cols]
 
@@ -705,10 +720,11 @@ def forecast_zone(zone_key, zone_display, region_key, season, fast=False):
                 "enso_current": enso_val,
                 "enso_phase":   enso_str,
                 "cv_accuracy":  cv_accuracy,
-                "source":       "zone",
-                "release_tier": zone_release_tier,
-                "ro_hss":       zone_ro_hss,
-                "no_skill":     (zone_release_tier == "suppressed"),
+                "source":          "zone",
+                "release_tier":    zone_release_tier,
+                "ro_hss":          zone_ro_hss,
+                "no_skill":        (zone_release_tier == "suppressed"),
+                "spi_lag1_source": _spi_source,  # "chirps" | "neutral_fallback"
             }
             if not fast:
                 result["advisory_en"] = generate_advisory(

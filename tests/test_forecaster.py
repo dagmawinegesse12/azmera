@@ -817,6 +817,170 @@ class TestPhaseFAMMInference:
         forecaster._AMM_JAN_LOADED_AT = 0.0
 
 
+# ── Category 15: Zone forecast CHIRPS fallback (Fallback A) ──────
+#
+# Root cause: forecast_zone() does `from chirps_anomaly import get_zone_spi_lag1`
+# inside the function body. On Railway (nixpacks, no libexpat.so.1) this import
+# raises ImportError at request time → 500. Fix: try/except, spi_lag1 = 0.0.
+#
+# Mocking strategy for the import-inside-function pattern:
+#   sys.modules["chirps_anomaly"] = None  → raises ImportError (fallback path)
+#   sys.modules["chirps_anomaly"] = Mock  → returns value  (success path)
+# patch.dict restores original state after each test automatically.
+
+def make_mock_zone_model_data(probs=(0.25, 0.45, 0.30), pred=1):
+    """Return a minimal zone model data dict that passes the ZONE_CV_THRESHOLD check."""
+    mock_model = MagicMock()
+    mock_model.predict_proba.return_value = np.array([list(probs)])
+    mock_model.predict.return_value = np.array([pred])
+    feature_cols = [
+        "enso_lag1", "enso_lag2", "enso_lag3", "enso_3mo_mean",
+        "iod_lag1",  "iod_lag2",  "iod_lag3",  "iod_3mo_mean",
+        "pdo_lag1",  "pdo_lag2",  "pdo_lag3",  "pdo_3mo_mean",
+        "atlantic_lag1", "atlantic_lag2", "atlantic_lag3", "atlantic_3mo_mean",
+        "spi_lag1",
+    ]
+    return {
+        "model":        mock_model,
+        "feature_cols": feature_cols,
+        "metrics":      {"cv_accuracy": 0.55, "cv_hss": 0.18},
+    }
+
+
+class TestZoneForecastChirpsFallback:
+    """
+    Verifies that forecast_zone() degrades gracefully (Fallback A) when
+    chirps_anomaly cannot be imported due to a missing native library.
+
+    Production scenario (Railway):
+        ImportError: libexpat.so.1: cannot open shared object file
+    Previously:  /forecast/zone → 500
+    After fix:   /forecast/zone → 200, zone model runs on SST indices,
+                 spi_lag1=0.0 (neutral), result["spi_lag1_source"]="neutral_fallback"
+    """
+
+    def test_zone_forecast_does_not_raise_when_chirps_import_fails(self):
+        """
+        Core regression: ImportError from chirps_anomaly must not propagate.
+        forecast_zone() must return a valid result dict, not raise.
+        """
+        import forecaster
+
+        with patch.dict("sys.modules", {"chirps_anomaly": None}), \
+             patch.object(forecaster, "get_latest_indices",
+                          return_value=make_mock_indices()), \
+             patch.object(forecaster, "load_zone_model",
+                          return_value=make_mock_zone_model_data()), \
+             patch.object(forecaster, "generate_advisory", return_value="• test"):
+
+            result = forecaster.forecast_zone("arsi", "Arsi", "oromia", "Kiremt")
+
+        assert result["prediction"] in ("Below Normal", "Near Normal", "Above Normal"), \
+            f"Unexpected prediction: {result['prediction']}"
+        assert result["source"] == "zone", \
+            "source must remain 'zone' — fallback A keeps the zone model"
+        assert result["spi_lag1_source"] == "neutral_fallback", \
+            f"Expected spi_lag1_source='neutral_fallback', got {result.get('spi_lag1_source')}"
+
+    def test_zone_forecast_spi_lag1_is_zero_in_fallback(self):
+        """
+        When CHIRPS is unavailable, the feature vector passed to the zone model
+        must have spi_lag1=0.0 (climatological neutral), not an arbitrary value.
+        """
+        import forecaster
+
+        captured_X = []
+        mock_data   = make_mock_zone_model_data()
+
+        def capture_predict_proba(X):
+            captured_X.append(X.copy())
+            return np.array([[0.25, 0.45, 0.30]])
+
+        mock_data["model"].predict_proba.side_effect = capture_predict_proba
+        mock_data["model"].predict.return_value = np.array([1])
+
+        with patch.dict("sys.modules", {"chirps_anomaly": None}), \
+             patch.object(forecaster, "get_latest_indices",
+                          return_value=make_mock_indices()), \
+             patch.object(forecaster, "load_zone_model", return_value=mock_data), \
+             patch.object(forecaster, "generate_advisory", return_value="• test"):
+
+            forecaster.forecast_zone("arsi", "Arsi", "oromia", "Kiremt")
+
+        assert len(captured_X) == 1, "predict_proba must be called exactly once"
+        X_df = captured_X[0]
+        assert "spi_lag1" in X_df.columns, "spi_lag1 must be present in feature vector"
+        assert float(X_df["spi_lag1"].iloc[0]) == 0.0, (
+            f"Expected spi_lag1=0.0 in fallback mode, got {X_df['spi_lag1'].iloc[0]}"
+        )
+
+    def test_zone_forecast_uses_real_spi_when_chirps_available(self):
+        """
+        When chirps_anomaly IS importable, get_zone_spi_lag1() return value must
+        flow into the feature vector — not be zeroed by the fallback path.
+        """
+        import forecaster
+
+        captured_X = []
+        mock_data   = make_mock_zone_model_data()
+
+        def capture_predict_proba(X):
+            captured_X.append(X.copy())
+            return np.array([[0.25, 0.45, 0.30]])
+
+        mock_data["model"].predict_proba.side_effect = capture_predict_proba
+        mock_data["model"].predict.return_value = np.array([1])
+
+        mock_chirps = MagicMock()
+        mock_chirps.get_zone_spi_lag1.return_value = -0.82
+
+        with patch.dict("sys.modules", {"chirps_anomaly": mock_chirps}), \
+             patch.object(forecaster, "get_latest_indices",
+                          return_value=make_mock_indices()), \
+             patch.object(forecaster, "load_zone_model", return_value=mock_data), \
+             patch.object(forecaster, "generate_advisory", return_value="• test"):
+
+            result = forecaster.forecast_zone("arsi", "Arsi", "oromia", "Kiremt")
+
+        assert result["spi_lag1_source"] == "chirps", \
+            f"Expected spi_lag1_source='chirps', got {result.get('spi_lag1_source')}"
+        X_df = captured_X[0]
+        assert abs(float(X_df["spi_lag1"].iloc[0]) - (-0.82)) < 1e-6, (
+            f"Expected spi_lag1=-0.82 from CHIRPS, got {X_df['spi_lag1'].iloc[0]}"
+        )
+
+    def test_zone_forecast_response_shape_unchanged_in_fallback(self):
+        """
+        Frontend depends on specific keys in the zone forecast response.
+        Fallback A must not alter the response shape — all required keys present.
+        """
+        import forecaster
+
+        required_keys = {
+            "zone", "zone_key", "region", "season",
+            "prediction", "confidence",
+            "prob_below", "prob_near", "prob_above",
+            "source", "release_tier", "no_skill",
+        }
+
+        with patch.dict("sys.modules", {"chirps_anomaly": None}), \
+             patch.object(forecaster, "get_latest_indices",
+                          return_value=make_mock_indices()), \
+             patch.object(forecaster, "load_zone_model",
+                          return_value=make_mock_zone_model_data()), \
+             patch.object(forecaster, "generate_advisory", return_value="• test"):
+
+            result = forecaster.forecast_zone("arsi", "Arsi", "oromia", "Kiremt")
+
+        missing = required_keys - set(result.keys())
+        assert not missing, (
+            f"Response missing required keys in fallback mode: {missing}"
+        )
+        # Probabilities must still sum to 1
+        total = result["prob_below"] + result["prob_near"] + result["prob_above"]
+        assert abs(total - 1.0) < 1e-6, f"Probabilities sum to {total}, not 1.0"
+
+
 # ── Helper: minimal mock CSV dataframe (for cache TTL test) ───────
 
 def _make_csv_df(path):
