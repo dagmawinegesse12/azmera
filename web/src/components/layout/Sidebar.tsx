@@ -3,22 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, BarChart2, Map, FlaskConical } from "lucide-react";
+import { useLocale } from "@/hooks/useLocale";
 
 interface NavItem {
-  label: string;
+  labelKey: "home" | "forecast" | "riskMap" | "validation";
   href: string;
   icon: React.ElementType;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Home",       href: "/",           icon: Home          },
-  { label: "Forecast",   href: "/forecast",   icon: BarChart2     },
-  { label: "Risk Map",   href: "/map",        icon: Map           },
-  { label: "Validation", href: "/validation", icon: FlaskConical  },
+  { labelKey: "home",       href: "/",           icon: Home          },
+  { labelKey: "forecast",   href: "/forecast",   icon: BarChart2     },
+  { labelKey: "riskMap",    href: "/map",        icon: Map           },
+  { labelKey: "validation", href: "/validation", icon: FlaskConical  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const t = useLocale();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -30,14 +32,14 @@ export function Sidebar() {
         <span className="text-lg font-semibold tracking-tight text-text-primary">
           Azmera
         </span>
-        <span className="text-xs text-text-muted">Seasonal Forecasts</span>
+        <span className="text-xs text-text-muted">{t.nav.seasonalForecasts}</span>
       </div>
 
       <div className="mx-3 h-px bg-background-border" />
 
       {/* Navigation */}
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-        {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
+        {NAV_ITEMS.map(({ labelKey, href, icon: Icon }) => {
           const active = isActive(href);
           return (
             <Link
@@ -51,7 +53,7 @@ export function Sidebar() {
               ].join(" ")}
             >
               <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-              {label}
+              {t.nav[labelKey]}
             </Link>
           );
         })}
@@ -59,7 +61,7 @@ export function Sidebar() {
 
       {/* Version footer */}
       <div className="px-5 py-4">
-        <span className="text-xs text-text-faint">v1.0 · Phase F</span>
+        <span className="text-xs text-text-faint">{t.nav.version}</span>
       </div>
     </aside>
   );

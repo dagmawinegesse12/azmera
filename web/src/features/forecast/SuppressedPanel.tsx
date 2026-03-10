@@ -3,6 +3,7 @@
 import { XCircle } from "lucide-react";
 import { SeasonKey } from "@/types/forecast";
 import { formatHss } from "@/utils/format";
+import { useLocale } from "@/hooks/useLocale";
 
 interface SuppressedPanelProps {
   regionName: string;
@@ -17,6 +18,8 @@ export function SuppressedPanel({
   roHss,
   cvHss,
 }: SuppressedPanelProps) {
+  const t = useLocale();
+
   return (
     <div className="bg-background-surface rounded-xl p-8 flex flex-col items-center text-center gap-5">
       {/* Icon */}
@@ -30,7 +33,7 @@ export function SuppressedPanel({
       {/* Heading */}
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-bold text-text-primary">
-          No Validated Forecast
+          {t.suppressed.heading}
         </h2>
         <p className="text-sm text-text-muted">
           {regionName} · {season}
@@ -39,24 +42,22 @@ export function SuppressedPanel({
 
       {/* Explanation */}
       <p className="text-sm text-text-secondary leading-relaxed max-w-md">
-        This region-season combination has no positive prospective skill
-        (Rolling-Origin HSS:{" "}
-        <span className="font-mono text-red-400">{formatHss(roHss)}</span>).
-        Displaying a forecast would misrepresent model reliability.
-        Climatological probabilities apply (≈33% each class).
+        {t.suppressed.explanationPre}{" "}
+        <span className="font-mono text-red-400">{formatHss(roHss)}</span>
+        {t.suppressed.explanationPost}
       </p>
 
       {/* CV-HSS note — only when available */}
       {cvHss != null && (
         <div className="mt-2 flex flex-col items-center gap-0.5 border-t border-background-border pt-4 w-full">
           <p className="text-xs text-text-muted">
-            CV-HSS (in-sample, optimistic):{" "}
+            {t.suppressed.cvHssLabel}:{" "}
             <span className="font-mono text-text-secondary">
               {formatHss(cvHss)}
             </span>
           </p>
           <p className="text-xs text-text-faint italic">
-            (Not used for release decision)
+            {t.suppressed.cvHssNote}
           </p>
         </div>
       )}

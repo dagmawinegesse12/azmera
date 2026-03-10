@@ -17,7 +17,8 @@ scikit-learn>=1.3.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 
-# Required for advisory generation (gpt-4o via generate_advisory in forecaster.py).
-# The fallback _advisory_fallback() is used automatically when OPENAI_API_KEY
+# Required for advisory generation (Gemini via generate_advisory in forecaster.py).
+# The fallback _advisory_fallback() is used automatically when GEMINI_API_KEY
 # is absent or the API is unavailable — set the key for full advisory text.
-openai>=1.12.0
+# NOTE: google-generativeai is deprecated — use google-genai (the current SDK).
+google-genai>=1.0.0

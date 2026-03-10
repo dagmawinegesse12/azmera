@@ -36,6 +36,9 @@ const DEFAULT_STATE = {
   seasonKey:          "Kiremt" as SeasonKey,
   zoneKey:            null,
   zoneDisplay:        null,
+  // English is the default on first load.
+  // The persisted value is only restored after the user deliberately toggles
+  // the language — skipHydration ensures SSR always starts from "en".
   language:           "en" as LanguageKey,
   mapDrillRegion:     null,
   forecastRequested:  false,

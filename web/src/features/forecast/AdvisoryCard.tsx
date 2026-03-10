@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import type { LanguageKey, ReleaseTier } from "@/types/forecast";
 import { formatHss } from "@/utils/format";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { useLocale } from "@/hooks/useLocale";
 
 interface AdvisoryCardProps {
   advisoryEn: string | null;
   advisoryAm: string | null;
+  /** Language is driven by the global TopNav toggle (store.language). */
   language: LanguageKey;
   /** Release tier of the forecast — drives caution banner for experimental. */
   releaseTier?: ReleaseTier | null;
@@ -19,14 +20,14 @@ interface AdvisoryCardProps {
 /**
  * Parse advisory text into individual bullet strings.
  *
- * GPT-4o can return several formats depending on the prompt:
+ * Gemini (like GPT-4o before it) can return several formats:
  *   • 🌦️ ...      ← bullet char (U+2022) — canonical after prompt fix
  *   - 🌱 ...      ← markdown dash
  *   * 💧 ...      ← markdown asterisk
- *   1. 🌾 ...     ← numbered list (old GPT-4o behavior before prompt fix)
+ *   1. 🌾 ...     ← numbered list
  *   1) 🌾 ...     ← numbered paren variant
  *
- * We accept all of them defensively so old cached responses still render.
+ * We accept all of them defensively so cached responses still render.
  */
 function parseBullets(text: string): string[] {
   return text
@@ -54,9 +55,10 @@ export function AdvisoryCard({
   releaseTier,
   roHss,
 }: AdvisoryCardProps) {
-  const [activeLang, setActiveLang] = useState<LanguageKey>(language);
+  const t = useLocale();
 
-  const advisory = activeLang === "am" ? advisoryAm : advisoryEn;
+  // Language is controlled globally — no local toggle state
+  const advisory = language === "am" ? advisoryAm : advisoryEn;
   const hasAdvisory = advisory && advisory.trim().length > 0;
   const bullets = hasAdvisory ? parseBullets(advisory) : [];
   const showRaw = hasAdvisory && bullets.length === 0;
@@ -68,34 +70,8 @@ export function AdvisoryCard({
       {/* Header row */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-text-primary uppercase tracking-wide">
-          Advisory
+          {t.advisory.title}
         </h3>
-
-        {/* Language toggle */}
-        <div className="flex items-center rounded-md overflow-hidden border border-background-border text-xs font-medium">
-          <button
-            onClick={() => setActiveLang("en")}
-            className={`px-2.5 py-1 transition-colors ${
-              activeLang === "en"
-                ? "bg-background-elevated text-text-primary"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
-            aria-pressed={activeLang === "en"}
-          >
-            EN
-          </button>
-          <button
-            onClick={() => setActiveLang("am")}
-            className={`px-2.5 py-1 transition-colors ${
-              activeLang === "am"
-                ? "bg-background-elevated text-text-primary"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
-            aria-pressed={activeLang === "am"}
-          >
-            አማ
-          </button>
-        </div>
       </div>
 
       {/* Experimental-tier caution banner */}
@@ -103,19 +79,18 @@ export function AdvisoryCard({
         <div className="flex gap-2.5 p-3 rounded-lg bg-amber-950/30 border border-amber-700/30 text-xs text-amber-200 leading-relaxed">
           <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-400" aria-hidden="true" />
           <span>
-            <strong className="font-semibold text-amber-300">Experimental forecast</strong>
+            <strong className="font-semibold text-amber-300">{t.advisory.experimentalBadge}</strong>
             {" — "}
-            Model skill is limited
+            {t.advisory.experimentalNote}
             {roHss != null ? ` (RO-HSS: ${formatHss(roHss)})` : ""}.
-            {" "}Treat recommendations as indicative only and verify with local
-            agricultural extension officers and official sources before acting.
+            {" "}{t.advisory.experimentalAction}
           </span>
         </div>
       )}
 
       {/* Advisory content */}
       {!hasAdvisory ? (
-        <EmptyState title="No advisory available" />
+        <EmptyState title={t.advisory.noAdvisory} />
       ) : showRaw ? (
         <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">
           {advisory}

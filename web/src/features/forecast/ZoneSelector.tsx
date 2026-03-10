@@ -10,6 +10,7 @@
 
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRegionZones } from "@/hooks/useForecast";
+import { useLocale } from "@/hooks/useLocale";
 
 export function ZoneSelector() {
   const regionKey  = useSelectionStore((s) => s.regionKey);
@@ -17,6 +18,7 @@ export function ZoneSelector() {
   const setZone    = useSelectionStore((s) => s.setZone);
 
   const { data: zones, isLoading } = useRegionZones(regionKey);
+  const t = useLocale();
 
   // No zones for this region — don't render anything
   if (!isLoading && (!zones || zones.length === 0)) return null;
@@ -27,7 +29,7 @@ export function ZoneSelector() {
     <div className="flex flex-col gap-1.5">
       {/* Mode toggle */}
       <label className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-        Level
+        {t.zoneSelector.levelLabel}
       </label>
       <div className="flex items-center rounded-lg overflow-hidden border text-xs font-medium"
            style={{ borderColor: "var(--background-border)" }}>
@@ -41,7 +43,7 @@ export function ZoneSelector() {
             color:       !isZoneMode ? "var(--text-primary)"        : "var(--text-muted)",
           }}
         >
-          Region
+          {t.zoneSelector.regionButton}
         </button>
         <button
           type="button"
@@ -59,7 +61,7 @@ export function ZoneSelector() {
             color:       isZoneMode ? "var(--text-primary)"       : "var(--text-muted)",
           }}
         >
-          {isLoading ? "…" : "Zone"}
+          {isLoading ? "…" : t.zoneSelector.zoneButton}
         </button>
       </div>
 

@@ -3,6 +3,7 @@
 import { ForecastResult, LanguageKey } from "@/types/forecast";
 import { formatPct, formatHss } from "@/utils/format";
 import { predictionTextClass } from "@/utils/prediction";
+import { useLocale } from "@/hooks/useLocale";
 
 interface ForecastVerdictCardProps {
   forecast: ForecastResult;
@@ -17,6 +18,7 @@ function extractFirstBullet(advisory: string | null): string | null {
 }
 
 export function ForecastVerdictCard({ forecast, language }: ForecastVerdictCardProps) {
+  const t = useLocale();
   const advisory =
     language === "am" ? forecast.advisory_am : forecast.advisory_en;
   const firstBullet = extractFirstBullet(advisory);
@@ -36,7 +38,7 @@ export function ForecastVerdictCard({ forecast, language }: ForecastVerdictCardP
           {forecast.prediction}
         </span>
         <span className="text-sm text-text-secondary">
-          Confidence:{" "}
+          {t.forecast.confidence}:{" "}
           <span className="font-semibold text-text-primary">
             {formatPct(forecast.confidence)}
           </span>
@@ -45,12 +47,12 @@ export function ForecastVerdictCard({ forecast, language }: ForecastVerdictCardP
 
       {/* HSS context */}
       <p className="text-xs text-text-muted font-mono">
-        Model skill (RO-HSS):{" "}
+        {t.forecast.modelSkillLabel}:{" "}
         <span className="text-text-secondary">{formatHss(forecast.ro_hss)}</span>
         {forecast.cv_hss != null && (
           <>
             {" · "}
-            CV-HSS:{" "}
+            {t.forecast.cvHssLabel}:{" "}
             <span className="text-text-secondary">{formatHss(forecast.cv_hss)}</span>
           </>
         )}

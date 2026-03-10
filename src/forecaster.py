@@ -10,7 +10,6 @@ import os
 import time
 import requests
 
-from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -778,22 +777,21 @@ def _advisory_fallback(region, season, prediction, probs, language):
         "tailored to your area and soil type.\n"
         "• 💧 Follow official seasonal advisories from ICPAC and Ethiopia's National "
         "Meteorological Institute (NMA) for water and irrigation guidance.\n"
-        "• 🌾 AI-generated advisory temporarily unavailable — please try again later."
+        "• 🌾 AI advisory temporarily unavailable — please try again later."
     )
 
 
 def generate_advisory(region, season, prediction, confidence,
                       enso_phase, probs, language="en",
                       release_tier="full", ro_hss=None):
-    """Generate farmer advisory using OpenAI. Falls back to deterministic text on any failure."""
+    """Generate farmer advisory using Google Gemini. Falls back to deterministic text on any failure."""
 
-    # client init is inside the try block so constructor failures are caught.
-    # st.secrets takes precedence (Streamlit Cloud); fall back to .env / OS env var.
+    # API key from Streamlit secrets (Cloud) or environment variable.
     try:
         import streamlit as st
-        api_key = st.secrets.get("OPENAI_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
+        api_key = st.secrets.get("GEMINI_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
     except Exception:
-        api_key = os.getenv("OPENAI_API_KEY", "")
+        api_key = os.getenv("GEMINI_API_KEY", "")
 
     _SEASON_MONTHS_MAP = {
         "Kiremt": "June–September",
@@ -878,16 +876,19 @@ def generate_advisory(region, season, prediction, confidence,
     """
 
     try:
-        client = OpenAI(api_key=api_key)  # inside try — constructor failures now caught
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=300,
-            temperature=0.7
+        from google import genai  # lazy import — google-genai SDK (replaces deprecated google-generativeai)
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config={
+                "max_output_tokens": 350,
+                "temperature": 0.7,
+            },
         )
-        content = response.choices[0].message.content.strip()
+        content = response.text.strip()
         if not content:
-            raise ValueError("Empty response from OpenAI")
+            raise ValueError("Empty response from Gemini")
         return content
     except Exception as e:
         print(f"[Azmera] Advisory generation failed ({language}): {e}")

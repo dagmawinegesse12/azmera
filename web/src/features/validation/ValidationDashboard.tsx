@@ -6,6 +6,7 @@ import type { ValidationSummary } from "@/types/validation";
 import { useValidationSummary } from "@/hooks/useValidation";
 import { REGION_OPTIONS } from "@/constants/regions";
 import { formatHss } from "@/utils/format";
+import { useLocale } from "@/hooks/useLocale";
 import { ReleaseMatrixTable } from "./ReleaseMatrixTable";
 import { HSSByRegionChart } from "./HSSByRegionChart";
 import { ReliabilityDiagram } from "./ReliabilityDiagram";
@@ -50,22 +51,23 @@ function hssAccent(hss: number): SummaryCardProps["accent"] {
 }
 
 function HSSNote({ summary }: { summary: ValidationSummary }) {
+  const t = useLocale();
   const roSign = summary.aggregate_hss >= 0 ? "+" : "";
   const cvSign = summary.loocv_hss >= 0 ? "+" : "";
   return (
     <div className="rounded-lg border border-background-border bg-background-elevated px-4 py-2.5 text-xs text-text-secondary">
-      <span className="font-semibold text-text-primary">Skill scores: </span>
-      Rolling-origin HSS (prospective):{" "}
+      <span className="font-semibold text-text-primary">{t.validation.skillScores} </span>
+      {t.validation.roHssProspective}:{" "}
       <span className="font-mono font-semibold text-emerald-400">
         {roSign}{formatHss(summary.aggregate_hss)}
       </span>
       {" · "}
-      LOOCV HSS (optimistic):{" "}
+      {t.validation.loocvHssOptimistic}:{" "}
       <span className="font-mono font-semibold text-sky-400">
         {cvSign}{formatHss(summary.loocv_hss)}
       </span>
       <span className="ml-2 text-text-muted">
-        — Rolling-origin is the prospective estimate; LOOCV tends to be inflated.
+        {t.validation.hssNote}
       </span>
     </div>
   );
@@ -76,6 +78,7 @@ export function ValidationDashboard() {
   const [selectedRegion, setSelectedRegion] = useState<string>(
     REGION_OPTIONS[0]?.key ?? ""
   );
+  const t = useLocale();
 
   const { data: summary, isLoading: summaryLoading } = useValidationSummary(season);
 
@@ -84,9 +87,9 @@ export function ValidationDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-text-primary">Model Validation</h2>
+          <h2 className="text-xl font-bold text-text-primary">{t.validation.sectionTitle}</h2>
           <p className="text-sm text-text-muted mt-0.5">
-            Rolling-origin out-of-sample skill scores by region and season.
+            {t.validation.sectionDescription}
           </p>
         </div>
 
@@ -96,7 +99,7 @@ export function ValidationDashboard() {
             htmlFor="season-select"
             className="text-xs font-semibold uppercase tracking-wider text-text-muted whitespace-nowrap"
           >
-            Season
+            {t.validation.seasonLabel}
           </label>
           <select
             id="season-select"
@@ -116,25 +119,25 @@ export function ValidationDashboard() {
       {/* Summary cards */}
       <div className="flex flex-wrap gap-3">
         <SummaryCard
-          label="Aggregate RO-HSS"
+          label={t.validation.aggregateRoHss}
           value={summary ? formatHss(summary.aggregate_hss) : "—"}
           accent={summary ? hssAccent(summary.aggregate_hss) : "blue"}
           isLoading={summaryLoading}
         />
         <SummaryCard
-          label="Full Release"
+          label={t.validation.fullRelease}
           value={summary?.n_full ?? "—"}
           accent="green"
           isLoading={summaryLoading}
         />
         <SummaryCard
-          label="Experimental"
+          label={t.validation.experimental}
           value={summary?.n_experimental ?? "—"}
           accent="amber"
           isLoading={summaryLoading}
         />
         <SummaryCard
-          label="Suppressed"
+          label={t.validation.suppressed}
           value={summary?.n_suppressed ?? "—"}
           accent="red"
           isLoading={summaryLoading}
@@ -150,7 +153,7 @@ export function ValidationDashboard() {
       {/* Release matrix table */}
       <section className="space-y-3">
         <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">
-          Release Matrix
+          {t.validation.releaseMatrix}
         </h3>
         <ReleaseMatrixTable season={season} />
       </section>
@@ -158,7 +161,7 @@ export function ValidationDashboard() {
       {/* HSS bar chart */}
       <section className="space-y-3">
         <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">
-          HSS by Region
+          {t.validation.hssByRegion}
         </h3>
         <HSSByRegionChart season={season} />
       </section>
@@ -167,14 +170,14 @@ export function ValidationDashboard() {
       <section className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">
-            Reliability Diagram
+            {t.validation.reliabilityDiagram}
           </h3>
           <div className="flex items-center gap-2">
             <label
               htmlFor="region-select"
               className="text-xs font-semibold uppercase tracking-wider text-text-muted whitespace-nowrap"
             >
-              Region
+              {t.validation.regionLabel}
             </label>
             <select
               id="region-select"

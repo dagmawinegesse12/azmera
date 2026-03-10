@@ -3,6 +3,7 @@
 import { REGION_OPTIONS } from "@/constants/regions";
 import { FORECAST_SEASONS } from "@/constants/seasons";
 import { useSelectionStore } from "@/store/selectionStore";
+import { useLocale } from "@/hooks/useLocale";
 import { ZoneSelector } from "./ZoneSelector";
 
 export function RegionSeasonSelector() {
@@ -11,6 +12,7 @@ export function RegionSeasonSelector() {
   const setRegion   = useSelectionStore((s) => s.setRegion);
   const setSeason   = useSelectionStore((s) => s.setSeason);
   const requestForecast = useSelectionStore((s) => s.requestForecast);
+  const t = useLocale();
 
   const canGenerate = Boolean(regionKey);
 
@@ -24,7 +26,7 @@ export function RegionSeasonSelector() {
           className="text-xs font-medium uppercase tracking-wider"
           style={{ color: "var(--text-muted)" }}
         >
-          Region
+          {t.selector.regionLabel}
         </label>
         <select
           id="region-select"
@@ -38,7 +40,7 @@ export function RegionSeasonSelector() {
           }}
         >
           <option value="" style={{ color: "var(--text-faint)" }}>
-            Select region…
+            {t.selector.regionPlaceholder}
           </option>
           {REGION_OPTIONS.map((r) => (
             <option
@@ -46,7 +48,7 @@ export function RegionSeasonSelector() {
               value={r.key}
               style={{ color: "var(--text-primary)", background: "var(--background-elevated)" }}
             >
-              {r.label}
+              {t.regionNames[r.key as keyof typeof t.regionNames] ?? r.label}
             </option>
           ))}
         </select>
@@ -59,7 +61,7 @@ export function RegionSeasonSelector() {
           className="text-xs font-medium uppercase tracking-wider"
           style={{ color: "var(--text-muted)" }}
         >
-          Season
+          {t.selector.seasonLabel}
         </label>
         <select
           id="season-select"
@@ -84,8 +86,7 @@ export function RegionSeasonSelector() {
         </select>
       </div>
 
-      {/* Zone selector — rendered only when a region is selected.
-          Fetches zone list and shows Region | Zone toggle + zone dropdown. */}
+      {/* Zone selector — rendered only when a region is selected. */}
       {regionKey && <ZoneSelector />}
 
       {/* Generate button */}
@@ -96,7 +97,7 @@ export function RegionSeasonSelector() {
         className="w-full sm:w-auto rounded-lg px-6 py-2 text-sm font-medium text-white transition-all duration-200 hover:brightness-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
         style={{ background: "var(--accent-green)" }}
       >
-        Generate Forecast
+        {t.selector.generateButton}
       </button>
     </div>
   );

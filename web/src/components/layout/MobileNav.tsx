@@ -11,22 +11,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, BarChart2, Map, FlaskConical } from "lucide-react";
+import { useLocale } from "@/hooks/useLocale";
 
 interface NavItem {
-  label: string;
+  labelKey: "home" | "forecast" | "riskMap" | "validation";
   href: string;
   icon: React.ElementType;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Home",       href: "/",           icon: Home          },
-  { label: "Forecast",   href: "/forecast",   icon: BarChart2     },
-  { label: "Risk Map",   href: "/map",        icon: Map           },
-  { label: "Validation", href: "/validation", icon: FlaskConical  },
+  { labelKey: "home",       href: "/",           icon: Home          },
+  { labelKey: "forecast",   href: "/forecast",   icon: BarChart2     },
+  { labelKey: "riskMap",    href: "/map",        icon: Map           },
+  { labelKey: "validation", href: "/validation", icon: FlaskConical  },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
+  const t = useLocale();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -38,7 +40,7 @@ export function MobileNav() {
       aria-label="Mobile navigation"
     >
       <div className="flex items-stretch h-14">
-        {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
+        {NAV_ITEMS.map(({ labelKey, href, icon: Icon }) => {
           const active = isActive(href);
           return (
             <Link
@@ -54,7 +56,7 @@ export function MobileNav() {
                 aria-hidden="true"
               />
               <span className="text-[10px] font-medium tracking-wide leading-none">
-                {label}
+                {t.nav[labelKey]}
               </span>
             </Link>
           );

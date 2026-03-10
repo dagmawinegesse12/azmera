@@ -3,20 +3,24 @@
 import { usePathname } from "next/navigation";
 import { useSelectionStore } from "@/store/selectionStore";
 import { FORECAST_SEASONS } from "@/constants/seasons";
+import { useLocale } from "@/hooks/useLocale";
+import type { Locale } from "@/hooks/useLocale";
 
-const BREADCRUMB_MAP: Record<string, string> = {
-  "/":           "Home",
-  "/forecast":   "Forecast",
-  "/map":        "Risk Map",
-  "/validation": "Validation",
+// Maps URL pathnames to locale nav keys
+const BREADCRUMB_KEYS: Record<string, "home" | "forecast" | "riskMap" | "validation"> = {
+  "/":           "home",
+  "/forecast":   "forecast",
+  "/map":        "riskMap",
+  "/validation": "validation",
 };
 
-function resolveBreadcrumb(pathname: string): string {
-  if (BREADCRUMB_MAP[pathname]) return BREADCRUMB_MAP[pathname];
-  const prefix = Object.keys(BREADCRUMB_MAP)
+function resolveBreadcrumb(pathname: string, t: Locale): string {
+  const directKey = BREADCRUMB_KEYS[pathname];
+  if (directKey) return t.nav[directKey];
+  const prefix = Object.keys(BREADCRUMB_KEYS)
     .filter((k) => k !== "/")
     .find((k) => pathname.startsWith(k));
-  return prefix ? BREADCRUMB_MAP[prefix] : "Azmera";
+  return prefix ? t.nav[BREADCRUMB_KEYS[prefix]] : "Azmera";
 }
 
 export function TopNav() {
@@ -25,8 +29,9 @@ export function TopNav() {
   const language    = useSelectionStore((s) => s.language);
   const setSeason   = useSelectionStore((s) => s.setSeason);
   const setLanguage = useSelectionStore((s) => s.setLanguage);
+  const t           = useLocale();
 
-  const breadcrumb = resolveBreadcrumb(pathname);
+  const breadcrumb = resolveBreadcrumb(pathname, t);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-background-border bg-background-surface px-3 md:px-6">
@@ -41,10 +46,7 @@ export function TopNav() {
 
       {/* Right controls */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* Season selector
-            Options show just the season key (e.g. "Kiremt") on all breakpoints —
-            the months clarifier is omitted to keep the select compact.
-            Full season details are available on the forecast page selector. */}
+        {/* Season selector */}
         <select
           value={season}
           onChange={(e) => setSeason(e.target.value as typeof season)}
@@ -57,11 +59,11 @@ export function TopNav() {
           ))}
         </select>
 
-        {/* Language toggle */}
+        {/* Language toggle — switches full site UI */}
         <button
           onClick={() => setLanguage(language === "en" ? "am" : "en")}
           className="rounded border border-background-border bg-background-elevated px-2.5 py-1.5 text-xs md:text-sm font-medium text-text-secondary transition-colors hover:border-accent-green/40 hover:text-text-primary"
-          aria-label="Toggle language"
+          aria-label={t.topNav.toggleLanguage}
         >
           {language === "en" ? "EN" : "አማ"}
         </button>

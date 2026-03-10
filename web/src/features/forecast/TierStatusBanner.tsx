@@ -3,6 +3,7 @@
 import { AlertTriangle, XCircle } from "lucide-react";
 import { ReleaseTier } from "@/types/forecast";
 import { formatHss } from "@/utils/format";
+import { useLocale } from "@/hooks/useLocale";
 
 interface TierStatusBannerProps {
   tier: ReleaseTier;
@@ -10,6 +11,8 @@ interface TierStatusBannerProps {
 }
 
 export function TierStatusBanner({ tier, roHss }: TierStatusBannerProps) {
+  const t = useLocale();
+
   if (tier === "full") {
     return null;
   }
@@ -23,10 +26,11 @@ export function TierStatusBanner({ tier, roHss }: TierStatusBannerProps) {
           aria-hidden="true"
         />
         <p className="text-sm text-amber-200 leading-relaxed">
-          <span className="font-semibold">Experimental Forecast</span> —
-          Prospective skill score (RO-HSS:{" "}
-          <span className="font-mono">{formatHss(roHss)}</span>) is positive but
-          below the validated threshold (≥ 0.10). Use with caution.
+          <span className="font-semibold">{t.tier.experimentalLabel}</span>
+          {" — "}
+          {t.tier.experimentalPre}{" "}
+          <span className="font-mono">{formatHss(roHss)}</span>
+          {t.tier.experimentalPost}
         </p>
       </div>
     );
@@ -41,10 +45,11 @@ export function TierStatusBanner({ tier, roHss }: TierStatusBannerProps) {
           aria-hidden="true"
         />
         <p className="text-sm text-red-200 leading-relaxed">
-          <span className="font-semibold">No Validated Forecast</span> — This
-          region-season has no positive prospective skill (RO-HSS:{" "}
-          <span className="font-mono">{formatHss(roHss)}</span>). Model output
-          is withheld.
+          <span className="font-semibold">{t.tier.suppressedLabel}</span>
+          {" — "}
+          {t.tier.suppressedPre}{" "}
+          <span className="font-mono">{formatHss(roHss)}</span>
+          {t.tier.suppressedPost}
         </p>
       </div>
     );

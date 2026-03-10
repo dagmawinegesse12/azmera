@@ -1,0 +1,124 @@
+{
+  "nav": {
+    "home": "Home",
+    "forecast": "Forecast",
+    "riskMap": "Risk Map",
+    "validation": "Validation",
+    "seasonalForecasts": "Seasonal Forecasts",
+    "version": "v1.0 · Phase F"
+  },
+  "topNav": {
+    "toggleLanguage": "Toggle language"
+  },
+  "forecastPage": {
+    "title": "Seasonal Forecast",
+    "description": "Select a region and season to generate a probabilistic rainfall forecast."
+  },
+  "validationPage": {
+    "title": "Model Validation",
+    "description": "Rolling-origin Heidke Skill Scores and release tier assignments for all 13 regions."
+  },
+  "selector": {
+    "regionLabel": "Region",
+    "seasonLabel": "Season",
+    "regionPlaceholder": "Select region…",
+    "generateButton": "Generate Forecast"
+  },
+  "forecast": {
+    "selectPrompt": "Select a region and season, then click Generate Forecast",
+    "selectZonePrompt": "Select a zone, then click Generate Forecast",
+    "loading": "Fetching forecast…",
+    "loadingZone": "Fetching zone forecast…",
+    "errorTitle": "Failed to load forecast",
+    "errorZoneTitle": "Failed to load zone forecast",
+    "errorGeneric": "An unexpected error occurred while fetching the forecast.",
+    "errorZoneGeneric": "An unexpected error occurred while fetching the zone forecast.",
+    "tryAgain": "Try again",
+    "probabilityDistribution": "Probability Distribution",
+    "confidence": "Confidence",
+    "modelSkillLabel": "Model skill (RO-HSS)",
+    "cvHssLabel": "CV-HSS",
+    "zonePricesNote": "Region-level data — zone prices not available"
+  },
+  "advisory": {
+    "title": "Advisory",
+    "experimentalBadge": "Experimental forecast",
+    "experimentalNote": "Model skill is limited",
+    "experimentalAction": "Treat recommendations as indicative only and verify with local agricultural extension officers and official sources before acting.",
+    "noAdvisory": "No advisory available"
+  },
+  "tier": {
+    "experimentalLabel": "Experimental Forecast",
+    "experimentalPre": "Prospective skill score (RO-HSS:",
+    "experimentalPost": ") is positive but below the validated threshold (≥ 0.10). Use with caution.",
+    "suppressedLabel": "No Validated Forecast",
+    "suppressedPre": "This region-season has no positive prospective skill (RO-HSS:",
+    "suppressedPost": "). Model output is withheld."
+  },
+  "suppressed": {
+    "heading": "No Validated Forecast",
+    "explanationPre": "This region-season combination has no positive prospective skill (Rolling-Origin HSS:",
+    "explanationPost": "). Displaying a forecast would misrepresent model reliability. Climatological probabilities apply (≈33% each class).",
+    "cvHssLabel": "CV-HSS (in-sample, optimistic)",
+    "cvHssNote": "(Not used for release decision)"
+  },
+  "validation": {
+    "sectionTitle": "Model Validation",
+    "sectionDescription": "Rolling-origin out-of-sample skill scores by region and season.",
+    "seasonLabel": "Season",
+    "regionLabel": "Region",
+    "aggregateRoHss": "Aggregate RO-HSS",
+    "fullRelease": "Full Release",
+    "experimental": "Experimental",
+    "suppressed": "Suppressed",
+    "skillScores": "Skill scores:",
+    "roHssProspective": "Rolling-origin HSS (prospective)",
+    "loocvHssOptimistic": "LOOCV HSS (optimistic)",
+    "hssNote": "— Rolling-origin is the prospective estimate; LOOCV tends to be inflated.",
+    "releaseMatrix": "Release Matrix",
+    "hssByRegion": "HSS by Region",
+    "reliabilityDiagram": "Reliability Diagram"
+  },
+  "landing": {
+    "seasonBadge": "Kiremt 2026 · March outlook available",
+    "heroTagline": "Probabilistic seasonal rainfall forecasts for Ethiopia",
+    "heroDescription": "Azmera issues above-/near-/below-normal tercile outlooks for Ethiopia's 13 administrative regions using SST-based logistic regression trained on CHIRPS satellite data and validated over 27 years of rolling-origin hindcasts. Every forecast carries an explicit skill tier so meteorologists always know how much confidence the model warrants.",
+    "ctaViewForecasts": "View Forecasts",
+    "ctaExploreValidation": "Explore Validation",
+    "statRegions": "regions",
+    "statSeasons": "seasons",
+    "statWindow": "validation window",
+    "statMetric": "skill metric",
+    "feature1Title": "13 Regions",
+    "feature1Body": "Independent logistic regression models for all 13 Ethiopian administrative regions, each trained on region-specific CHIRPS precipitation and SST predictors.",
+    "feature2Title": "Validated Skill",
+    "feature2Body": "Rolling-origin Heidke Skill Score evaluation using 27 years of prospective data. Only models that beat climatology earn a full release — no false confidence.",
+    "feature3Title": "Transparent Tiers",
+    "feature3Body": "Full, Experimental, and Suppressed release tiers based on out-of-sample skill. Forecasters always know how much to trust each regional outlook before acting.",
+    "navForecast": "Forecast",
+    "navValidation": "Validation",
+    "navMap": "Map",
+    "footer": "© 2026 Azmera · Created by Dagmawi Negesse · Built for Ethiopia's meteorological community",
+    "langSwitch": "አማ"
+  },
+  "regionNames": {
+    "addis_ababa": "Addis Ababa",
+    "afar": "Afar",
+    "amhara": "Amhara",
+    "benishangul_gumz": "Benishangul-Gumz",
+    "dire_dawa": "Dire Dawa",
+    "gambela": "Gambela",
+    "harari": "Harari",
+    "oromia": "Oromia",
+    "sidama": "Sidama",
+    "snnpr": "SNNPR",
+    "somali": "Somali",
+    "south_west": "South West",
+    "tigray": "Tigray"
+  },
+  "zoneSelector": {
+    "levelLabel": "Level",
+    "regionButton": "Region",
+    "zoneButton": "Zone"
+  }
+}

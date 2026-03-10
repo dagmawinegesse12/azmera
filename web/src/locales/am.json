@@ -1,0 +1,124 @@
+{
+  "nav": {
+    "home": "ዋና ገጽ",
+    "forecast": "ትንበያ",
+    "riskMap": "የአደጋ ካርታ",
+    "validation": "ማረጋገጫ",
+    "seasonalForecasts": "የወቅት ትንበያዎች",
+    "version": "v1.0 · Phase F"
+  },
+  "topNav": {
+    "toggleLanguage": "ቋንቋ ቀይር"
+  },
+  "forecastPage": {
+    "title": "የወቅት ትንበያ",
+    "description": "የዝናብ መጠን ትንበያ ለማግኘት ክልል እና ወቅት ይምረጡ።"
+  },
+  "validationPage": {
+    "title": "የሞዴል ማረጋገጫ",
+    "description": "ለ13ቱም ክልሎች የHeidke Skill Scores (HSS) ውጤት እና የደረጃ ምደባ።"
+  },
+  "selector": {
+    "regionLabel": "ክልል",
+    "seasonLabel": "ወቅት",
+    "regionPlaceholder": "ክልል ይምረጡ…",
+    "generateButton": "ትንበያ አውጣ"
+  },
+  "forecast": {
+    "selectPrompt": "ክልል እና ወቅት ይምረጡ፣ ከዚያ 'ትንበያ አውጣ' የሚለውን ይጫኑ",
+    "selectZonePrompt": "ዞን ይምረጡ፣ ከዚያ 'ትንበያ አውጣ' የሚለውን ይጫኑ",
+    "loading": "ትንበያው በመጫን ላይ ነው…",
+    "loadingZone": "የዞን ትንበያ በመጫን ላይ ነው…",
+    "errorTitle": "ትንበያውን መጫን አልተቻለም",
+    "errorZoneTitle": "የዞን ትንበያውን መጫን አልተቻለም",
+    "errorGeneric": "ትንበያውን በማምጣት ላይ ሳለ ያልተጠበቀ ስህተት አጋጥሟል።",
+    "errorZoneGeneric": "የዞን ትንበያውን በማምጣት ላይ ሳለ ያልተጠበቀ ስህተት አጋጥሟል።",
+    "tryAgain": "እንደገና ይሞክሩ",
+    "probabilityDistribution": "የዕድል ስርጭት (Probability Distribution)",
+    "confidence": "እርግጠኝነት",
+    "modelSkillLabel": "የሞዴል ብቃት (RO-HSS)",
+    "cvHssLabel": "CV-HSS",
+    "zonePricesNote": "የክልል ደረጃ መረጃ — የዞን ዋጋዎች አልተገኙም"
+  },
+  "advisory": {
+    "title": "ምክረ-ሃሳብ",
+    "experimentalBadge": "የሙከራ ደረጃ ትንበያ",
+    "experimentalNote": "የሞዴሉ ብቃት ውስን ነው",
+    "experimentalAction": "የውሳኔ ሃሳቦችን እንደ አመላካች ብቻ ይውሰዱ፤ ከመተግበሩ በፊት ከአካባቢው የግብርና ኤክስቴንሽን ባለሙያዎች እና ከይፋዊ ምንጮች ጋር ያረጋግጡ።",
+    "noAdvisory": "ምንም ምክረ-ሃሳብ የለም"
+  },
+  "tier": {
+    "experimentalLabel": "የሙከራ ደረጃ ትንበያ",
+    "experimentalPre": "የሚጠበቀው የብቃት ውጤት (RO-HSS:",
+    "experimentalPost": ") አዎንታዊ ቢሆንም ከተቀመጠው ዝቅተኛ ገደብ (≥ 0.10) በታች ነው። በጥንቃቄ ይጠቀሙ።",
+    "suppressedLabel": "ያልተረጋገጠ ትንበያ",
+    "suppressedPre": "ይህ ክልል እና ወቅት አዎንታዊ የብቃት ውጤት የለውም (RO-HSS:",
+    "suppressedPost": ")። የሞዴሉ ውጤት ታግዷል።"
+  },
+  "suppressed": {
+    "heading": "ያልተረጋገጠ ትንበያ",
+    "explanationPre": "ይህ የክልል እና ወቅት ጥምረት አዎንታዊ የብቃት ውጤት (Rolling-Origin HSS) የለውም (",
+    "explanationPost": ")። ትንበያውን ማሳየት የሞዴሉን አስተማማኝነት ሊያዛባ ይችላል። የአየር ንብረት መደበኛ ዕድሎች (ለእያንዳንዱ ክፍል ≈33%) ተግባራዊ ይሆናሉ።",
+    "cvHssLabel": "CV-HSS (የተሻለ ግምት)",
+    "cvHssNote": "(ለለቀቃ ውሳኔ ጥቅም ላይ አይውልም)"
+  },
+  "validation": {
+    "sectionTitle": "የሞዴል ማረጋገጫ",
+    "sectionDescription": "በክልል እና በወቅት የተከፋፈሉ የብቃት ውጤቶች።",
+    "seasonLabel": "ወቅት",
+    "regionLabel": "ክልል",
+    "aggregateRoHss": "አጠቃላይ RO-HSS",
+    "fullRelease": "ሙሉ ለቀቃ",
+    "experimental": "የሙከራ ደረጃ",
+    "suppressed": "የታገደ",
+    "skillScores": "የብቃት ውጤቶች (Skill scores):",
+    "roHssProspective": "Rolling-origin HSS (የሚጠበቅ)",
+    "loocvHssOptimistic": "LOOCV HSS (ከፍተኛ ግምት)",
+    "hssNote": "— Rolling-origin ትክክለኛው ግምት ሲሆን፤ LOOCV ግን የተጋነነ ውጤት ሊያሳይ ይችላል።",
+    "releaseMatrix": "የለቀቃ ማትሪክስ",
+    "hssByRegion": "HSS በክልል",
+    "reliabilityDiagram": "የአስተማማኝነት ዲያግራም"
+  },
+  "landing": {
+    "seasonBadge": "ክረምት 2026 · የመጋቢት እይታ ይገኛል",
+    "heroTagline": "ወቅታዊ የዝናብ ሁኔታ ትንበያ ለኢትዮጵያ",
+    "heroDescription": "አዝመራ (Azmera) የCHIRPS ሳተላይት መረጃዎችን እና የባህር ወለል ሙቀት (SST) አመላካቾችን በመጠቀም፣ ለ13ቱ የኢትዮጵያ ክልሎች ከመደበኛ በላይ፣ መደበኛ እና ከመደበኛ በታች የዝናብ ትንበያዎችን ይሰጣል። እያንዳንዱ ትንበያ በግልጽ የተቀመጠ የብቃት ደረጃ ስላለው ባለሙያዎች በምን ያህል እርግጠኝነት መጠቀም እንዳለባቸው ያውቃሉ።",
+    "ctaViewForecasts": "ትንበያዎችን ይመልከቱ",
+    "ctaExploreValidation": "ማረጋገጫዎችን ይመልከቱ",
+    "statRegions": "ክልሎች",
+    "statSeasons": "ወቅቶች",
+    "statWindow": "የማረጋገጫ ጊዜ",
+    "statMetric": "የብቃት መለኪያ",
+    "feature1Title": "13 ክልሎች",
+    "feature1Body": "ለእያንዳንዱ የኢትዮጵያ ክልል እንደየአካባቢው የዝናብ እና የሙቀት ሁኔታ የተዘጋጁ ራሳቸውን የቻሉ የትንበያ ሞዴሎች።",
+    "feature2Title": "የተረጋገጠ ብቃት",
+    "feature2Body": "ባለፉት 27 ዓመታት መረጃዎች ላይ የተፈተነ። ትክክለኛነታቸው የተረጋገጠ ሞዴሎች ብቻ ለተጠቃሚ ይለቀቃሉ - የተሳሳተ መተማመንን ለማስቀረት።",
+    "feature3Title": "ግልጽ የደረጃ ምደባ",
+    "feature3Body": "ሙሉ፣ የሙከራ እና የታገዱ የለቀቃ ደረጃዎች። ተጠቃሚዎች ትንበያውን ከመጠቀማቸው በፊት ምን ያህል ሊታመን እንደሚችል ያውቃሉ።",
+    "navForecast": "ትንበያ",
+    "navValidation": "ማረጋገጫ",
+    "navMap": "ካርታ",
+    "footer": "© 2026 አዝመራ · በዳግማዊ ነገሰ የተዘጋጀ · ለኢትዮጵያ ሜትሮሎጂ ማህበረሰብ የቀረበ",
+    "langSwitch": "EN"
+  },
+  "regionNames": {
+    "addis_ababa": "አዲስ አበባ",
+    "afar": "አፋር",
+    "amhara": "አማራ",
+    "benishangul_gumz": "ቤኒሻንጉል ጉሙዝ",
+    "dire_dawa": "ድሬዳዋ",
+    "gambela": "ጋምቤላ",
+    "harari": "ሐረሪ",
+    "oromia": "ኦሮሚያ",
+    "sidama": "ሲዳማ",
+    "snnpr": "ደቡብ ብሔር ብሔረሰቦችና ሕዝቦች",
+    "somali": "ሶማሌ",
+    "south_west": "ደቡብ ምዕራብ",
+    "tigray": "ትግራይ"
+  },
+  "zoneSelector": {
+    "levelLabel": "ደረጃ",
+    "regionButton": "ክልል",
+    "zoneButton": "ዞን"
+  }
+}
